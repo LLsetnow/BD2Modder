@@ -4,12 +4,14 @@ const fs = require('node:fs/promises');
 const path = require('node:path');
 const { pathToFileURL } = require('node:url');
 const { Project, importZip, inside, read } = require('./project.cjs');
-const { Settings } = require('./settings.cjs');
+const { Settings, RESET_UI_ZOOM, MIN_UI_ZOOM, MAX_UI_ZOOM } = require('./settings.cjs');
+const { formatShortcut } = require('./keybindings.cjs');
 const { task } = require('./tasks.cjs');
 const { Generation, normalizeProfile, validateProfile } = require('./generation.cjs');
 protocol.registerSchemesAsPrivileged([{ scheme: 'bdapp', privileges: { standard: true, secure: true, supportFetchAPI: true, corsEnabled: true } }, { scheme: 'bdasset', privileges: { standard: true, secure: true, supportFetchAPI: true, corsEnabled: true } }]);
 app.setName('BD Modder');
 app.commandLine.appendSwitch('force-renderer-accessibility');
+const isMac = process.platform === 'darwin';
 const profileDirectory = process.argv.find(arg => arg.startsWith('--profile-dir='));
 if (profileDirectory) { const directory = path.resolve(profileDirectory.slice('--profile-dir='.length)); require('node:fs').mkdirSync(directory, { recursive: true }); app.setPath('userData', directory); }
 const instanceLock = app.requestSingleInstanceLock();
@@ -54,14 +56,42 @@ async function saveProject(asNew) {
   return current.save();
 }
 function menu() {
-  if (settingsScreen) { Menu.setApplicationMenu(null); return; }
+  if (settingsScreen && !isMac) { Menu.setApplicationMenu(null); return; }
   const send = command => () => window.webContents.send('bd:command', command);
+  const zoom = amount => () => changeInterfaceZoom(amount).catch(error => console.error('界面缩放设置失败：', error));
   const keys = settings.value.shortcuts;
-  Menu.setApplicationMenu(Menu.buildFromTemplate([
-    { label: '文件', submenu: [{ label: '打开 MOD', accelerator: keys.open, click: send('open') }, { label: '保存', accelerator: keys.save, click: send('save') }, { label: '另存为', accelerator: keys.saveAs, click: send('saveAs') }, { label: '导出', accelerator: keys.export, click: send('export') }, { type: 'separator' }, { role: 'quit', label: '退出' }] },
-    { label: '编辑', submenu: [{ label: '撤销修改', accelerator: keys.undo, click: send('undo') }, { label: '重做修改', accelerator: keys.redo, click: send('redo') }, { type: 'separator' }, { role: 'cut', label: '剪切' }, { role: 'copy', label: '复制' }, { role: 'paste', label: '粘贴' }, { role: 'selectAll', label: '全选' }] },
-    { label: '视图', submenu: [{ label: '适应画布（' + keys.fit + '）', click: send('fit') }, { role: 'resetZoom', label: '重置界面比例' }, { role: 'zoomIn', label: '放大界面' }, { role: 'zoomOut', label: '缩小界面' }, { role: 'togglefullscreen', label: '全屏' }, ...(!app.isPackaged ? [{ role: 'toggleDevTools', label: '开发者工具' }] : [])] }
-  ]));
+  const command = (label, id) => ({ label, accelerator: keys[id].replace(/^Ctrl\+/, 'CommandOrControl+'), click: send(id) });
+  const template = [];
+  if (isMac) template.push({ role: 'appMenu' });
+  if (!settingsScreen) {
+    const file = [command('打开 MOD', 'open'), command('保存', 'save'), command('另存为', 'saveAs'), command('导出', 'export')];
+    if (!isMac) file.push({ type: 'separator' }, { role: 'quit', label: '退出' });
+    template.push({ label: '文件', submenu: file });
+  }
+  const history = settingsScreen ? [{ role: 'undo' }, { role: 'redo' }] : [command('撤销修改', 'undo'), command('重做修改', 'redo')];
+  template.push({ label: '编辑', submenu: [...history, { type: 'separator' }, { role: 'cut', label: '剪切' }, { role: 'copy', label: '复制' }, { role: 'paste', label: '粘贴' }, { role: 'selectAll', label: '全选' }] });
+  if (!settingsScreen) {
+    const shortcut = value => formatShortcut(value, isMac);
+    template.push({ label: '视图', submenu: [
+      { label: '适应画布（' + shortcut(keys.fit) + '）', click: send('fit') },
+      { label: '放大界面（' + shortcut('Ctrl+=') + ' / ' + shortcut('Ctrl+Shift+=') + '）', click: zoom(0.1) },
+      { label: '缩小界面（' + shortcut('Ctrl+-') + '）', click: zoom(-0.1) },
+      { label: '重置界面比例（' + shortcut('Ctrl+0') + '）', click: zoom(0) },
+      { role: 'togglefullscreen', label: '全屏' },
+      ...(!app.isPackaged ? [{ role: 'toggleDevTools', label: '开发者工具' }] : [])
+    ] });
+  }
+  if (isMac) template.push({ role: 'windowMenu', label: '窗口' });
+  Menu.setApplicationMenu(Menu.buildFromTemplate(template));
+}
+async function changeInterfaceZoom(amount) {
+  const current = window.webContents.getZoomFactor();
+  const requested = amount === 0 ? RESET_UI_ZOOM : current + amount;
+  const zoom = Math.round(Math.min(MAX_UI_ZOOM, Math.max(MIN_UI_ZOOM, requested)) * 100) / 100;
+  window.webContents.setZoomFactor(zoom);
+  await settings.save({ uiZoom: zoom });
+  if (!window.webContents.isDestroyed()) window.webContents.send('bd:zoom-changed', zoom);
+  return zoom;
 }
 function setupHandlers() {
   handle('bd:boot', () => ({ settings: settings.public(), project: startupProject, version: app.getVersion() }));
@@ -90,6 +120,10 @@ function setupHandlers() {
   }));
   handle('bd:reveal', () => { shell.showItemInFolder(path.join(requireProject().root, requireProject().atlasName)); return true; });
   handle('bd:settings', async patch => { if (patch?.profile) validateProfile(patch.profile); const result = await settings.save(patch || {}); menu(); return result; });
+  handle('bd:zoom', direction => {
+    if (!['in', 'out', 'reset'].includes(direction)) throw Error('缩放操作无效。');
+    return changeInterfaceZoom(direction === 'in' ? 0.1 : direction === 'out' ? -0.1 : 0);
+  });
   handle('bd:settings-screen', open => { settingsScreen = Boolean(open); menu(); return true; });
   handle('bd:workflow', async () => { const result = await dialog.showOpenDialog(window, { title: '导入 ComfyUI API 工作流或旧版重绘方案', filters: [{ name: 'JSON', extensions: ['json'] }], properties: ['openFile'] }); if (result.canceled) return null; const bytes = await read(result.filePaths[0]); if (bytes.length > 10 * 1024 * 1024) throw Error('工作流文件过大。'); return normalizeProfile(JSON.parse(bytes.toString('utf8').replace(/^\uFEFF/, ''))); });
   handle('bd:check-service', provider => { if (!['ComfyUI', 'RunningHub'].includes(provider)) throw Error('服务类型无效。'); return generation.check(settings.value, provider, settings.key()); });
@@ -129,6 +163,13 @@ if (instanceLock) app.whenReady().then(async () => {
   });
   const openAt = process.argv.indexOf('--open'); if (openAt !== -1 && process.argv[openAt + 1]) { try { startupProject = await loadProject(process.argv[openAt + 1]); } catch (e) { startupProject = { error: errorText(e) }; } }
   window = new BrowserWindow({ title: 'BD Modder', width: 1500, height: 960, minWidth: 740, minHeight: 620, backgroundColor: '#181c23', show: false, autoHideMenuBar: true, webPreferences: { preload: path.join(__dirname, 'preload.cjs'), nodeIntegration: false, contextIsolation: true, sandbox: true, webSecurity: true, spellcheck: false } });
+  window.webContents.setZoomFactor(settings.value.uiZoom);
+  window.webContents.on('before-input-event', (event, input) => {
+    if (input.type !== 'keyDown' || input.isAutoRepeat || input.alt || !(isMac ? input.meta && !input.control : input.control && !input.meta)) return;
+    if (input.key === '+' || input.key === '=' || input.key === 'Add') { event.preventDefault(); void changeInterfaceZoom(0.1).catch(error => console.error('界面缩放设置失败：', error)); }
+    else if (input.key === '-') { event.preventDefault(); void changeInterfaceZoom(-0.1).catch(error => console.error('界面缩放设置失败：', error)); }
+    else if (input.key === '0') { event.preventDefault(); void changeInterfaceZoom(0).catch(error => console.error('界面缩放设置失败：', error)); }
+  });
   window.webContents.setWindowOpenHandler(() => ({ action: 'deny' }));
   window.webContents.on('will-navigate', (event, url) => { if (!url.startsWith('bdapp://editor/')) event.preventDefault(); });
   window.webContents.session.setPermissionRequestHandler((_webContents, _permission, callback) => callback(false));

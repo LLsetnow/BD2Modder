@@ -1,11 +1,12 @@
 # BD Modder 1.2.2
 
-Windows x64 MOD 图集编辑器，使用 Electron 和 Spine WebGL 4.1，沿用已确认的标准 / 图集对照工作区。
+支持 Windows x64 和 macOS Apple Silicon（ARM64）的 MOD 图集编辑器，使用 Electron 和 Spine WebGL 4.1，提供标准 / 图集对照工作区。
 
 ## 启动
 
 - 从源码启动：安装依赖后运行 `npm start`。
-- 构建便携版：运行 `npm run dist`，再运行 `release/BD-Modder-1.2.2-win-x64.exe`；若运行 `release/win-unpacked/BD Modder.exe`，需保留整个目录。
+- 在 Windows 上运行 `BD-Modder-1.2.2-win-x64.exe`。若从 `win-unpacked` 启动，需保留整个目录。
+- 在装有 macOS 13 或更新版本的 Apple 芯片 Mac 上，打开 `BD-Modder-1.2.2-mac-arm64.dmg`，将 `BD Modder.app` 拖入「应用程序」，再从「应用程序」启动。
 - 运行打包版不需要另外安装 Node.js 或 .NET。
 - 打开素材 → 选择 MOD 文件夹、.modfile 或 ZIP。当前支持 Spine 4.1 的完整素材，根目录需要一份 atlas、一份 skel 或骨骼 JSON，以及对应 PNG / PNG.bytes 图集。
 
@@ -31,7 +32,7 @@ Windows x64 MOD 图集编辑器，使用 Electron 和 Spine WebGL 4.1，沿用�
 - 撤销 / 重做、modfile JSON 配置编辑、原目录保存、另存为完整 MOD 文件夹、MOD ZIP 和透明预览 PNG 导出。
 - 保存前检查外部修改，保存时自动备份到原 MOD 下的 .bdmodder-backups。原素材在点击保存前不改动；ZIP 项目需要另存为。
 - ComfyUI 和 RunningHub 的工作流导入、节点映射、连接测试、图集局部重绘、进度、停止等待、结果预览后应用。
-- 最近项目、暗色 / 浅色、密度、网点和布局偏好；Windows 系统加密保存云端密钥。
+- 最近项目、暗色 / 浅色、密度、网点和布局偏好；通过 Windows 系统加密或 macOS 钥匙串保护云端密钥。
 
 ## 重绘服务
 
@@ -40,6 +41,8 @@ Windows x64 MOD 图集编辑器，使用 Electron 和 Spine WebGL 4.1，沿用�
 目前重绘以当前图集页为输入；一次选择同一页上的部件。输出 PNG 需要与图集尺寸一致。结果只应用到选区，并保留原始 Alpha；其余区域保持原样。服务配置的测试只检查连接，生成按钮才提交任务。停止等待不会保证远程任务终止；已提交的任务 ID 存在用户配置目录 jobs 下，请查看服务端记录后再重试。
 
 ## 快捷键
+
+macOS 使用 Command（⌘）对应下列 Ctrl 快捷键。按住 Command 点击可多选部件。
 
 - Ctrl+O 打开，Ctrl+S 保存，Ctrl+Shift+S 另存为，Ctrl+E 导出。
 - Ctrl+Z 撤销，Ctrl+Shift+Z 重做，H 隐藏选中部件。
@@ -53,15 +56,17 @@ Windows x64 MOD 图集编辑器，使用 Electron 和 Spine WebGL 4.1，沿用�
 安装 Node.js 22.12 或更新版本后：
 
 ~~~text
-npm install
-node node_modules/electron/install.js
+npm ci
 npm run build
 npm test
 npm start
-npm run dist
 ~~~
 
-也可直接执行 node scripts/launch.cjs --open 完整MOD目录。构建脚本使用固定依赖版本和本地 Electron 运行时；package-lock.json 可复现安装。
+也可直接执行 `node scripts/launch.cjs --open 完整MOD目录`。
+
+- 在 Windows 上运行 `npm run dist`，生成 `release/BD-Modder-1.2.2-win-x64.exe`。
+- 在 macOS 上运行 `npm run dist:mac`，生成 `release/BD-Modder-1.2.2-mac-arm64.dmg`。本地测试构建默认使用临时签名（ad hoc）。分发时可提供 electron-builder 的 `CSC_LINK` 或 `CSC_NAME` 和 Apple 公证凭据。若受信任的测试包首次打开时被系统拦截，可在「系统设置 → 隐私与安全性」选择「仍要打开」。[Apple 的打开说明](https://support.apple.com/en-us/102445)
+- 在任一支持的平台运行 `npm run pack`，生成对应的解包目录，便于调试。
 
 原有 HTML 草案仍保留在 draft/，仅用于查看设计，其 720×720 静态图不代表桌面版的渲染。preview-server.cjs 继续提供局域网草案预览。
 

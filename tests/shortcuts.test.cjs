@@ -4,7 +4,7 @@ const assert = require('node:assert/strict');
 const fs = require('node:fs/promises');
 const os = require('node:os');
 const path = require('node:path');
-const { DEFAULT_SHORTCUTS, validateShortcuts, normalizeShortcut, shortcutFromEvent, actionForEvent } = require('../app/keybindings.cjs');
+const { DEFAULT_SHORTCUTS, formatShortcut, validateShortcuts, normalizeShortcut, shortcutFromEvent, actionForEvent } = require('../app/keybindings.cjs');
 const { Settings } = require('../app/settings.cjs');
 test('custom shortcuts reject conflicts, reserved keys and unmodified native text keys', () => {
   assert.deepEqual(validateShortcuts(), DEFAULT_SHORTCUTS);
@@ -21,6 +21,16 @@ test('custom shortcuts reject conflicts, reserved keys and unmodified native tex
   assert.equal(actionForEvent({ key: 'g', code: 'KeyG', isComposing: true }, keys), null);
   assert.equal(shortcutFromEvent({ key: '?', code: 'Slash', shiftKey: true }), 'Shift+/');
   assert.equal(shortcutFromEvent({ key: 'Control', code: 'ControlLeft', ctrlKey: true }), null);
+});
+test('macOS uses Command for existing shortcut bindings and reserves application menu keys', () => {
+  const commandSaveAs = { key: 'S', code: 'KeyS', metaKey: true, shiftKey: true };
+  assert.equal(shortcutFromEvent(commandSaveAs, true), DEFAULT_SHORTCUTS.saveAs);
+  assert.equal(actionForEvent(commandSaveAs, DEFAULT_SHORTCUTS, true), 'saveAs');
+  assert.equal(actionForEvent(commandSaveAs, DEFAULT_SHORTCUTS), null);
+  assert.equal(actionForEvent({ key: 's', code: 'KeyS', ctrlKey: true }, DEFAULT_SHORTCUTS, true), null);
+  assert.equal(formatShortcut(DEFAULT_SHORTCUTS.saveAs, true), '⌘+Shift+S');
+  assert.throws(() => validateShortcuts({ play: 'Ctrl+Q' }, true), /系统/);
+  assert.equal(validateShortcuts({ play: 'Ctrl+Q' }).play, 'Ctrl+Q');
 });
 test('shortcut settings survive restart and invalid updates leave the saved map intact', async t => {
   const root = await fs.mkdtemp(path.join(os.tmpdir(), 'bdmodder-shortcuts-')); t.after(() => fs.rm(root, { recursive: true, force: true }));

@@ -1,10 +1,11 @@
 import { SpinePreview } from './spine-preview.js';
 import { SettingsPage } from './settings-page.js';
-import { DEFAULT_SHORTCUTS, actionForEvent } from '../app/keybindings.cjs';
+import { DEFAULT_SHORTCUTS, actionForEvent, formatShortcut } from '../app/keybindings.cjs';
 import { PartContextMenu, grayHiddenRegions } from './part-visibility.js';
 const $ = selector => document.querySelector(selector);
 const $$ = selector => [...document.querySelectorAll(selector)];
 const root = document.documentElement;
+const isMac = window.bd.isMac;
 const state = { project: null, info: null, settings: null, selected: new Set(), filter: 'visible', search: '', page: '', inspector: 'part', view: 'scene', target: 'scene', generating: false, atlasZoom: 1, atlasPan: { x: 0, y: 0 }, thumbnails: new Map(), visibleSignature: '', ready: false };
 const preferences = { layout: 'studio', theme: 'dark', density: 'comfortable', grid: true, provider: 'ComfyUI' };
 try { Object.assign(preferences, JSON.parse(localStorage.getItem('bdmodder-ui') || '{}')); } catch {}
@@ -30,6 +31,7 @@ state.version = '1.2.0';
 try { preview = new SpinePreview($('#scene-canvas'), $('#scene-overlay'), updateFrame, showError); } catch (error) { showError(error); }
 const settingsPage = new SettingsPage({
   native: true,
+  isMac,
   onPause: () => preview?.setPlaying(false),
   onResume: () => preview?.invalidate(),
   onVisibility: open => window.bd.settingsScreen(open),
@@ -43,10 +45,12 @@ const settingsPage = new SettingsPage({
 });
 function syncSettings() { settingsPage.sync({ preferences, service: state.settings, project: state.project, version: state.version, device: state.info?.device }); }
 function setShortcutHints(keys = DEFAULT_SHORTCUTS) {
-  $('.workspace-switch').title = '切换工作区（' + keys.switchWorkspace + '）'; $('#fit-button .key-hint').textContent = keys.fit; $('.search-box kbd').textContent = keys.search;
-  $('#play-button').title = '播放 / 暂停（' + keys.play + '）'; $('[data-action="undo"]').title = '撤销修改（' + keys.undo + '）'; $('.save-button').title = '保存（' + keys.save + '）';
-  $('#hide-parts').title = '隐藏选中部件（' + keys.hide + '）';
+  const shortcut = id => formatShortcut(keys[id], isMac);
+  $('.workspace-switch').title = '切换工作区（' + shortcut('switchWorkspace') + '）'; $('#fit-button .key-hint').textContent = shortcut('fit'); $('.search-box kbd').textContent = shortcut('search');
+  $('#play-button').title = '播放 / 暂停（' + shortcut('play') + '）'; $('[data-action="undo"]').title = '撤销修改（' + shortcut('undo') + '）'; $('.save-button').title = '保存（' + shortcut('save') + '）';
+  $('#hide-parts').title = '隐藏选中部件（' + shortcut('hide') + '）';
 }
+function updateInterfaceZoom(value = state.settings?.uiZoom) { if (Number.isFinite(value)) $('#ui-zoom-value').textContent = Math.round(value * 100) + '%'; }
 
 function setInspectorOpen(open) { root.dataset.inspector = open ? 'open' : 'closed'; $('#inspector-toggle').setAttribute('aria-expanded', String(open)); }
 function setLayout(value) { preferences.layout = value === 'compare' ? 'compare' : 'studio'; root.dataset.layout = preferences.layout; $('#layout-select').value = preferences.layout; $$('.workspace-switch button').forEach(b => b.setAttribute('aria-pressed', String(b.dataset.workspace === preferences.layout))); setInspectorOpen(preferences.layout === 'studio' && innerWidth >= 1100); persist(); preview?.invalidate(); }
@@ -206,6 +210,7 @@ $('#atlas-select').onchange = event => { state.page = event.target.value; state.
 $('#play-button').onclick = () => preview?.setPlaying(!preview.playing); $('#step-back').onclick = () => { preview.setPlaying(false); preview.seek(0); }; $('#step-forward').onclick = () => { preview.setPlaying(false); preview.seek(preview.time + 1 / 60); };
 $('#timeline-range').oninput = event => { preview.setPlaying(false); preview.seek(Number(event.target.value) / 1000); }; $('#speed-select').onchange = event => preview.speed = Number(event.target.value);
 $('#zoom-in').onclick = () => zoom(.1); $('#zoom-out').onclick = () => zoom(-.1); $('#zoom-value').onclick = fit; $('#fit-button').onclick = fit;
+$('#ui-zoom-in').onclick = () => guard(async () => updateInterfaceZoom(await window.bd.zoom('in'))); $('#ui-zoom-out').onclick = () => guard(async () => updateInterfaceZoom(await window.bd.zoom('out'))); $('#ui-zoom-reset').onclick = () => guard(async () => updateInterfaceZoom(await window.bd.zoom('reset')));
 $('#inspector-toggle').onclick = () => setInspectorOpen(root.dataset.inspector !== 'open'); $('#inspector-close').onclick = () => setInspectorOpen(false);
 $$('.inspector-tabs button').forEach(b => b.onclick = () => setInspector(b.dataset.inspector));
 $('#go-ai').onclick = () => { setInspectorOpen(true); setInspector('ai'); }; $('#show-atlas').onclick = () => setView('atlas');
@@ -222,7 +227,7 @@ $('#prompt-input').oninput = event => $('#prompt-count').textContent = event.tar
 $('#dialog-close').onclick = closeModal;
 document.addEventListener('keydown', event => {
   if (event.defaultPrevented || event.repeat || settingsPage.open || document.activeElement?.isContentEditable || /INPUT|TEXTAREA|SELECT/.test(document.activeElement?.tagName || '') || $('#action-dialog').open) return;
-  const action = actionForEvent(event, state.settings?.shortcuts || DEFAULT_SHORTCUTS);
+  const action = actionForEvent(event, state.settings?.shortcuts || DEFAULT_SHORTCUTS, isMac);
   if (!['play', 'switchWorkspace', 'fit', 'search', 'hide'].includes(action)) return; event.preventDefault();
   if (action === 'hide') { guard(() => changeVisibility(true)); return; }
   if (action === 'play' && state.ready) preview.setPlaying(!preview.playing);
@@ -233,6 +238,11 @@ let wide = innerWidth >= 1100; addEventListener('resize', () => { if (wide && in
 document.addEventListener('visibilitychange', () => { if (document.hidden) preview?.setPlaying(false); });
 setupPointer('#scene-viewport', 'scene'); setupPointer('#atlas-viewport', 'atlas');
 window.bd.onProgress(message => $('#generation-progress').textContent = message);
+window.bd.onZoomChanged(updateInterfaceZoom);
 window.bd.onCommand(command => guard(async () => { if ((command === 'undo' || command === 'redo') && /INPUT|TEXTAREA/.test(document.activeElement?.tagName || '')) { document.execCommand(command); return; } if (command === 'open') openChooser(); else if (command === 'save') await save(); else if (command === 'saveAs') await save(true); else if (command === 'export') exportDialog(); else if (command === 'undo' || command === 'redo') await refresh(await window.bd.undo(command === 'redo')); else if (command === 'fit') fit(); }));
 applyPreferences(); setView('scene'); setControls(false);
-guard(async () => { const boot = await window.bd.boot(); state.settings = boot.settings; state.version = boot.version; settingsStatus(); setShortcutHints(state.settings.shortcuts); if (boot.project) await openDescriptor(boot.project); });
+if (isMac) {
+  for (const hint of $$('[data-primary-key]')) hint.textContent = '⌘';
+  for (const button of $$('.interface-zoom button[title]')) button.title = button.title.replaceAll('Ctrl', '⌘');
+}
+guard(async () => { const boot = await window.bd.boot(); state.settings = boot.settings; state.version = boot.version; updateInterfaceZoom(); settingsStatus(); setShortcutHints(state.settings.shortcuts); if (boot.project) await openDescriptor(boot.project); });

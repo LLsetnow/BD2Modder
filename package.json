@@ -10,7 +10,8 @@
     "build": "node scripts/build.cjs",
     "test": "node --test tests/*.test.cjs",
     "pack": "node scripts/package.cjs --dir",
-    "dist": "node scripts/package.cjs"
+    "dist": "node scripts/package.cjs",
+    "dist:mac": "node scripts/package.cjs --mac"
   },
   "dependencies": {
     "@esotericsoftware/spine-webgl": "4.1.56",
@@ -48,6 +49,17 @@
       ],
       "signAndEditExecutable": false,
       "artifactName": "BD-Modder-${version}-win-${arch}.${ext}"
+    },
+    "mac": {
+      "target": [
+        {
+          "target": "dmg",
+          "arch": ["arm64"]
+        }
+      ],
+      "category": "public.app-category.graphics-design",
+      "icon": "assets/modstudio-brand/app-icon.png",
+      "artifactName": "BD-Modder-${version}-mac-${arch}.${ext}"
     }
   }
 }

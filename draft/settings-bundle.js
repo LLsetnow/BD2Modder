@@ -44,38 +44,42 @@
       ]);
       var DEFAULT_SHORTCUTS3 = Object.freeze(Object.fromEntries(ACTIONS2.map((action) => [action.id, action.default])));
       var RESERVED = /* @__PURE__ */ new Set(["Ctrl+C", "Ctrl+V", "Ctrl+X", "Ctrl+A", "Ctrl+=", "Ctrl+Shift+=", "Ctrl+-", "Ctrl+0", "F11", "Alt+F4", "Alt+Tab", "Ctrl+Alt+Delete"]);
-      function normalizeShortcut(value) {
+      var MAC_RESERVED = /* @__PURE__ */ new Set(["Ctrl+Q", "Ctrl+H", "Ctrl+Alt+H", "Ctrl+M", "Ctrl+W", "Ctrl+Space"]);
+      function formatShortcut2(shortcut, isMac) {
+        return isMac ? shortcut.replace(/^Ctrl\+/, "\u2318+") : shortcut;
+      }
+      function normalizeShortcut(value, isMac = false) {
         if (typeof value !== "string" || value.length > 50) throw Error("\u5FEB\u6377\u952E\u683C\u5F0F\u65E0\u6548\u3002");
         const parts = value.split("+"), key = parts.pop(), mods = new Set(parts);
         if (mods.size !== parts.length || parts.some((p) => !["Ctrl", "Alt", "Shift"].includes(p)) || !/^(?:[A-Z0-9]|F(?:[1-9]|1[0-2])|Space|[\/\[\]\\;\-',.`=])$/.test(key || "")) throw Error("\u8BF7\u4F7F\u7528\u5B57\u6BCD\u3001\u6570\u5B57\u3001F1\u2013F12\u3001\u7A7A\u683C\u6216\u5E38\u7528\u7B26\u53F7\uFF0C\u53EF\u642D\u914D Ctrl / Alt / Shift\u3002");
         const normalized = ["Ctrl", "Alt", "Shift"].filter((m) => mods.has(m)).concat(key).join("+");
-        if (RESERVED.has(normalized)) throw Error("\u8BE5\u7EC4\u5408\u7531\u7CFB\u7EDF\u6216\u6587\u672C\u7F16\u8F91\u4F7F\u7528\uFF0C\u8BF7\u6362\u4E00\u4E2A\u5FEB\u6377\u952E\u3002");
+        if (RESERVED.has(normalized) || isMac && MAC_RESERVED.has(normalized)) throw Error("\u8BE5\u7EC4\u5408\u7531\u7CFB\u7EDF\u6216\u6587\u672C\u7F16\u8F91\u4F7F\u7528\uFF0C\u8BF7\u6362\u4E00\u4E2A\u5FEB\u6377\u952E\u3002");
         return normalized;
       }
-      function validateShortcuts3(input = {}) {
+      function validateShortcuts3(input = {}, isMac = false) {
         if (!input || typeof input !== "object" || Array.isArray(input)) throw Error("\u5FEB\u6377\u952E\u914D\u7F6E\u65E0\u6548\u3002");
         const output = {}, occupied = /* @__PURE__ */ new Map();
         for (const action of ACTIONS2) {
-          const key = normalizeShortcut(input[action.id] ?? action.default);
+          const key = normalizeShortcut(input[action.id] ?? action.default, isMac);
           if (action.native && !key.includes("+") && !/^F\d+$/.test(key)) throw Error("\u9879\u76EE\u548C\u7F16\u8F91\u64CD\u4F5C\u8BF7\u4F7F\u7528\u7EC4\u5408\u952E\u6216 F1\u2013F12\uFF0C\u907F\u514D\u5F71\u54CD\u6587\u5B57\u8F93\u5165\u3002");
-          if (occupied.has(key)) throw Error(`\u5FEB\u6377\u952E ${key} \u5DF2\u7528\u4E8E\u201C${occupied.get(key)}\u201D\u3002`);
+          if (occupied.has(key)) throw Error(`\u5FEB\u6377\u952E ${formatShortcut2(key, isMac)} \u5DF2\u7528\u4E8E\u201C${occupied.get(key)}\u201D\u3002`);
           output[action.id] = key;
           occupied.set(key, action.name);
         }
         return output;
       }
-      function shortcutFromEvent2(event) {
-        if (event.isComposing || event.metaKey || ["Control", "Alt", "Shift", "Meta", "Escape", "Tab", "Enter", "Backspace", "Delete"].includes(event.key)) return null;
+      function shortcutFromEvent2(event, isMac = false) {
+        if (event.isComposing || (isMac ? event.ctrlKey : event.metaKey) || ["Control", "Alt", "Shift", "Meta", "Escape", "Tab", "Enter", "Backspace", "Delete"].includes(event.key)) return null;
         const punctuation = { Space: "Space", Slash: "/", BracketLeft: "[", BracketRight: "]", Backslash: "\\", Semicolon: ";", Quote: "'", Minus: "-", Equal: "=", Comma: ",", Period: ".", Backquote: "`" };
         const key = /^Key[A-Z]$/.test(event.code) ? event.code.slice(3) : /^Digit\d$/.test(event.code) ? event.code.slice(5) : punctuation[event.code] || (/^F(?:[1-9]|1[0-2])$/.test(event.key) ? event.key : null);
         if (!key) return null;
-        return [event.ctrlKey && "Ctrl", event.altKey && "Alt", event.shiftKey && "Shift", key].filter(Boolean).join("+");
+        return [(isMac ? event.metaKey : event.ctrlKey) && "Ctrl", event.altKey && "Alt", event.shiftKey && "Shift", key].filter(Boolean).join("+");
       }
-      function actionForEvent2(event, shortcuts) {
-        const key = shortcutFromEvent2(event);
+      function actionForEvent2(event, shortcuts, isMac) {
+        const key = shortcutFromEvent2(event, isMac);
         return key ? ACTIONS2.find((action) => shortcuts[action.id] === key)?.id || null : null;
       }
-      module.exports = { ACTIONS: ACTIONS2, DEFAULT_SHORTCUTS: DEFAULT_SHORTCUTS3, normalizeShortcut, validateShortcuts: validateShortcuts3, shortcutFromEvent: shortcutFromEvent2, actionForEvent: actionForEvent2 };
+      module.exports = { ACTIONS: ACTIONS2, DEFAULT_SHORTCUTS: DEFAULT_SHORTCUTS3, formatShortcut: formatShortcut2, normalizeShortcut, validateShortcuts: validateShortcuts3, shortcutFromEvent: shortcutFromEvent2, actionForEvent: actionForEvent2 };
     }
   });
 
@@ -128,7 +132,7 @@
             <section id="settings-pane-project" data-settings-pane="project" role="tabpanel" aria-labelledby="settings-tab-project" hidden>
               <div class="settings-card"><h3>\u5F53\u524D\u9879\u76EE</h3><div class="settings-project-summary"><strong id="settings-project-name">\u672A\u6253\u5F00 MOD</strong><p id="settings-project-path">\u6253\u5F00 MOD \u540E\u53EF\u7BA1\u7406\u914D\u7F6E\u548C\u6587\u4EF6\u3002</p></div>
                 <div class="settings-row"><span><strong>MOD \u914D\u7F6E</strong><small>\u7F16\u8F91\u539F\u59CB .modfile\uFF0C\u4FDD\u7559\u672A\u8BC6\u522B\u7684\u5B57\u6BB5\u3002</small></span><button type="button" class="button" data-project-setting="metadata">\u7F16\u8F91\u914D\u7F6E</button></div>
-                <div class="settings-row"><span><strong>\u9879\u76EE\u6587\u4EF6\u5939</strong><small>\u5728\u8D44\u6E90\u7BA1\u7406\u5668\u4E2D\u67E5\u770B\u7D20\u6750\u3002</small></span><button type="button" class="button" data-project-setting="reveal">\u6253\u5F00\u4F4D\u7F6E</button></div>
+                <div class="settings-row"><span><strong>\u9879\u76EE\u6587\u4EF6\u5939</strong><small>\u5728${this.options.isMac ? "\u8BBF\u8FBE" : "\u8D44\u6E90\u7BA1\u7406\u5668"}\u4E2D\u67E5\u770B\u7D20\u6750\u3002</small></span><button type="button" class="button" data-project-setting="reveal">\u6253\u5F00\u4F4D\u7F6E</button></div>
                 <div class="settings-row"><span><strong>\u53E6\u5B58\u4E3A\u526F\u672C</strong><small>\u521B\u5EFA\u5305\u542B\u5F53\u524D\u4FEE\u6539\u7684\u5B8C\u6574 MOD \u6587\u4EF6\u5939\u3002</small></span><button type="button" class="button" data-project-setting="saveAs">\u53E6\u5B58\u4E3A</button></div>
                 <div class="settings-row"><span><strong>\u91CD\u505A\u4FEE\u6539</strong><small>\u91CD\u65B0\u5E94\u7528\u521A\u521A\u64A4\u9500\u7684\u7F16\u8F91\u3002</small></span><button type="button" class="button" data-project-setting="redo">\u91CD\u505A</button></div>
               </div><p class="help-text">\u4FDD\u5B58\u5230\u539F\u76EE\u5F55\u524D\u4F1A\u68C0\u67E5\u5916\u90E8\u4FEE\u6539\uFF0C\u5E76\u81EA\u52A8\u5907\u4EFD\u539F\u6587\u4EF6\u3002</p>
@@ -236,9 +240,9 @@
       if (device) this.element.querySelector("#settings-device").textContent = device;
     }
     setShortcuts(value) {
-      this.shortcuts = (0, import_keybindings.validateShortcuts)(value);
+      this.shortcuts = (0, import_keybindings.validateShortcuts)(value, this.options.isMac);
       this.element.querySelectorAll("[data-shortcut]").forEach((button) => {
-        button.textContent = this.shortcuts[button.dataset.shortcut];
+        button.textContent = (0, import_keybindings.formatShortcut)(this.shortcuts[button.dataset.shortcut], this.options.isMac);
         button.dataset.recording = "false";
         button.setAttribute("aria-pressed", "false");
       });
@@ -257,7 +261,7 @@
       const old = this.recording;
       this.recording = null;
       const button = this.element.querySelector(`[data-shortcut="${old}"]`);
-      button.textContent = this.shortcuts[old];
+      button.textContent = (0, import_keybindings.formatShortcut)(this.shortcuts[old], this.options.isMac);
       button.dataset.recording = "false";
       button.setAttribute("aria-pressed", "false");
     }
@@ -271,12 +275,12 @@
           this.feedback("#shortcut-feedback", "\u5DF2\u53D6\u6D88\u4FEE\u6539\u3002");
           return;
         }
-        const shortcut = (0, import_keybindings.shortcutFromEvent)(event);
+        const shortcut = (0, import_keybindings.shortcutFromEvent)(event, this.options.isMac);
         if (!shortcut) return;
         const id = this.recording;
         this.cancelCapture();
         this.run(async () => {
-          const next = (0, import_keybindings.validateShortcuts)({ ...this.shortcuts, [id]: shortcut });
+          const next = (0, import_keybindings.validateShortcuts)({ ...this.shortcuts, [id]: shortcut }, this.options.isMac);
           this.setShortcuts(await this.options.onShortcuts(next));
           this.feedback("#shortcut-feedback", "\u5FEB\u6377\u952E\u5DF2\u4FDD\u5B58\u3002");
         }, "#shortcut-feedback");

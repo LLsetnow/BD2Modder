@@ -25,6 +25,7 @@
         <button class="button subtle save-button" disabled title="保存（Ctrl+S）">保存</button>
         <button class="button primary" data-action="export">导出 <span aria-hidden="true">↗</span></button>
         <button type="button" class="button subtle settings-trigger" id="settings-open" data-action="settings" aria-label="打开设置" aria-controls="settings-page" aria-expanded="false" title="设置">设置</button>
+        <div class="interface-zoom" role="group" aria-label="界面缩放"><button type="button" class="button compact" id="ui-zoom-out" aria-label="缩小界面" title="缩小界面（Ctrl + -）">A−</button><output id="ui-zoom-value" aria-live="polite">110%</output><button type="button" class="button compact" id="ui-zoom-in" aria-label="放大界面" title="放大界面（Ctrl + = 或 Ctrl + Shift + =）">A+</button><button type="button" class="button compact subtle" id="ui-zoom-reset" title="重置界面比例（Ctrl + 0）">重置</button></div>
       </nav>
     </header>
 
@@ -38,9 +39,9 @@
         <div class="panel-title"><h2>部件资源 <span class="count" id="part-count">—</span></h2><button class="text-button" id="clear-selection">清空选择</button></div>
         <label class="search-box"><span class="search-mark" aria-hidden="true"></span><input id="part-search" type="search" placeholder="搜索部件名称" aria-label="搜索部件名称" autocomplete="off"><kbd>/</kbd></label>
         <div class="library-filters" role="tablist" aria-label="部件筛选"><button role="tab" aria-selected="true" data-filter="visible">当前姿态</button><button role="tab" aria-selected="false" data-filter="all">全部</button><button role="tab" aria-selected="false" data-filter="selected">已选 <span id="filter-selected-count">1</span></button><button role="tab" aria-selected="false" data-filter="hidden">已隐藏 <span id="filter-hidden-count">0</span></button></div>
-        <div class="list-caption"><span id="list-caption">部件</span><span>Ctrl 多选</span></div>
+        <div class="list-caption"><span id="list-caption">部件</span><span><span data-primary-key>Ctrl</span> 多选</span></div>
         <div class="part-list" id="part-list" role="listbox" aria-label="部件" aria-multiselectable="true"></div>
-        <div class="library-bottom"><span class="key-hint">Ctrl</span><span>点击以添加或移除选区</span></div>
+        <div class="library-bottom"><span class="key-hint" data-primary-key>Ctrl</span><span>点击以添加或移除选区</span></div>
       </aside>
 
       <section class="stage-panel panel" aria-label="创作画布">
@@ -73,7 +74,7 @@
             <div class="selection-summary"><div class="selection-thumb checker"><img id="selection-thumb" alt="已选部件缩略图"></div><div><span class="eyebrow">SELECTION</span><h3 id="selection-name">—</h3><span class="small muted" id="selection-kind">选择一个部件以查看属性</span></div></div>
             <div class="selection-note" id="selection-note">—</div>
             <div class="inspector-section"><div class="section-heading"><h3>部件信息</h3><span class="small muted">图集坐标</span></div><dl class="property-list"><div><dt>名称</dt><dd id="property-name">—</dd></div><div><dt>位置</dt><dd id="property-position">—</dd></div><div><dt>尺寸</dt><dd id="property-size">—</dd></div><div><dt>旋转</dt><dd id="property-rotation">—</dd></div><div><dt>图集页</dt><dd id="property-page">—</dd></div></dl></div>
-            <div class="inspector-section"><div class="section-heading"><h3>在画布中</h3></div><button class="button full" id="locate-button">定位已选部件 <span>↗</span></button><label class="toggle-row"><span>显示选区边框</span><input type="checkbox" id="selection-toggle" checked><span class="switch" aria-hidden="true"></span></label><p class="help-text">画布和部件列表同步选择。按住 Ctrl 可同时选择多个部件。</p></div>
+            <div class="inspector-section"><div class="section-heading"><h3>在画布中</h3></div><button class="button full" id="locate-button">定位已选部件 <span>↗</span></button><label class="toggle-row"><span>显示选区边框</span><input type="checkbox" id="selection-toggle" checked><span class="switch" aria-hidden="true"></span></label><p class="help-text">画布和部件列表同步选择。按住 <span data-primary-key>Ctrl</span> 可同时选择多个部件。</p></div>
             <div class="inspector-section"><h3>编辑选中部件</h3><div class="color-edit-row"><input id="tint-color" type="color" value="#8db2e4" aria-label="部件颜色"><label>着色强度<input id="tint-strength" type="range" min="0" max="1" step="0.05" value="0.65"></label></div><button class="button full" id="tint-parts">应用颜色</button><div class="edit-actions"><button class="button" id="hide-parts">隐藏部件</button><button class="button" id="show-parts">显示部件</button><button class="button" id="restore-parts">还原贴图</button><button class="button" id="replace-part">替换 PNG</button><button class="button" id="export-part">导出部件</button></div><p class="help-text">替换和导出使用图集中存储的方向。隐藏部件在图集中显示为灰色；导出时清除其像素。保存保留可恢复的隐藏记录。</p></div><div class="inspector-section selection-next"><span class="eyebrow">NEXT STEP</span><h3>开始局部重绘</h3><p>为当前选区填写修改要求。</p><button class="text-button" id="go-ai">前往 AI 重绘 <span>→</span></button></div>
           </section>
           <section class="inspector-page" data-page="texture" hidden>

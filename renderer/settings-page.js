@@ -1,4 +1,4 @@
-import { ACTIONS, DEFAULT_SHORTCUTS, validateShortcuts, shortcutFromEvent } from '../app/keybindings.cjs';
+import { ACTIONS, DEFAULT_SHORTCUTS, formatShortcut, validateShortcuts, shortcutFromEvent } from '../app/keybindings.cjs';
 const escape = value => String(value ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 const categories = [
   ['general', '常规', '界面、工作区与画布外观。'],
@@ -42,7 +42,7 @@ export class SettingsPage {
             <section id="settings-pane-project" data-settings-pane="project" role="tabpanel" aria-labelledby="settings-tab-project" hidden>
               <div class="settings-card"><h3>当前项目</h3><div class="settings-project-summary"><strong id="settings-project-name">未打开 MOD</strong><p id="settings-project-path">打开 MOD 后可管理配置和文件。</p></div>
                 <div class="settings-row"><span><strong>MOD 配置</strong><small>编辑原始 .modfile，保留未识别的字段。</small></span><button type="button" class="button" data-project-setting="metadata">编辑配置</button></div>
-                <div class="settings-row"><span><strong>项目文件夹</strong><small>在资源管理器中查看素材。</small></span><button type="button" class="button" data-project-setting="reveal">打开位置</button></div>
+                <div class="settings-row"><span><strong>项目文件夹</strong><small>在${this.options.isMac ? '访达' : '资源管理器'}中查看素材。</small></span><button type="button" class="button" data-project-setting="reveal">打开位置</button></div>
                 <div class="settings-row"><span><strong>另存为副本</strong><small>创建包含当前修改的完整 MOD 文件夹。</small></span><button type="button" class="button" data-project-setting="saveAs">另存为</button></div>
                 <div class="settings-row"><span><strong>重做修改</strong><small>重新应用刚刚撤销的编辑。</small></span><button type="button" class="button" data-project-setting="redo">重做</button></div>
               </div><p class="help-text">保存到原目录前会检查外部修改，并自动备份原文件。</p>
@@ -95,15 +95,15 @@ export class SettingsPage {
     }
     this.element.querySelector('#settings-version').textContent = version || '1.0'; this.element.querySelector('#settings-runtime').textContent = this.options.native ? 'Electron 桌面版' : 'HTML 设计预览'; if (device) this.element.querySelector('#settings-device').textContent = device;
   }
-  setShortcuts(value) { this.shortcuts = validateShortcuts(value); this.element.querySelectorAll('[data-shortcut]').forEach(button => { button.textContent = this.shortcuts[button.dataset.shortcut]; button.dataset.recording = 'false'; button.setAttribute('aria-pressed', 'false'); }); }
+  setShortcuts(value) { this.shortcuts = validateShortcuts(value, this.options.isMac); this.element.querySelectorAll('[data-shortcut]').forEach(button => { button.textContent = formatShortcut(this.shortcuts[button.dataset.shortcut], this.options.isMac); button.dataset.recording = 'false'; button.setAttribute('aria-pressed', 'false'); }); }
   capture(id) { this.cancelCapture(); this.recording = id; const button = this.element.querySelector(`[data-shortcut="${id}"]`); button.textContent = '按下组合键…'; button.dataset.recording = 'true'; button.setAttribute('aria-pressed', 'true'); this.feedback('#shortcut-feedback', '按下新的快捷键，或按 Esc 取消。'); }
-  cancelCapture() { if (!this.recording) return; const old = this.recording; this.recording = null; const button = this.element.querySelector(`[data-shortcut="${old}"]`); button.textContent = this.shortcuts[old]; button.dataset.recording = 'false'; button.setAttribute('aria-pressed', 'false'); }
+  cancelCapture() { if (!this.recording) return; const old = this.recording; this.recording = null; const button = this.element.querySelector(`[data-shortcut="${old}"]`); button.textContent = formatShortcut(this.shortcuts[old], this.options.isMac); button.dataset.recording = 'false'; button.setAttribute('aria-pressed', 'false'); }
   keydown(event) {
     if (!this.open) return;
     if (this.recording) {
       event.preventDefault(); event.stopImmediatePropagation(); if (event.key === 'Escape') { this.cancelCapture(); this.feedback('#shortcut-feedback', '已取消修改。'); return; }
-      const shortcut = shortcutFromEvent(event); if (!shortcut) return; const id = this.recording; this.cancelCapture();
-      this.run(async () => { const next = validateShortcuts({ ...this.shortcuts, [id]: shortcut }); this.setShortcuts(await this.options.onShortcuts(next)); this.feedback('#shortcut-feedback', '快捷键已保存。'); }, '#shortcut-feedback');
+      const shortcut = shortcutFromEvent(event, this.options.isMac); if (!shortcut) return; const id = this.recording; this.cancelCapture();
+      this.run(async () => { const next = validateShortcuts({ ...this.shortcuts, [id]: shortcut }, this.options.isMac); this.setShortcuts(await this.options.onShortcuts(next)); this.feedback('#shortcut-feedback', '快捷键已保存。'); }, '#shortcut-feedback');
     } else if (event.key === 'Escape' && !document.querySelector('dialog[open]')) { event.preventDefault(); event.stopPropagation(); this.hide(); }
   }
   feedback(selector, message, error = false) { const target = this.element.querySelector(selector); target.textContent = message; target.dataset.error = String(error); }
