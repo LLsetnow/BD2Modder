@@ -1,0 +1,13 @@
+.part-row.is-hidden .part-thumbnail img { filter: grayscale(1); opacity: .4; }
+.part-row.is-hidden .part-info strong { color: var(--text-muted, #8a929f); }
+.part-row.is-hidden .part-info small { color: var(--text-muted, #8a929f); }
+.hidden-atlas-background { fill: #5b626e; }
+.hidden-atlas-border { fill: none; stroke: #a6adb8; stroke-width: 2; stroke-dasharray: 6 4; vector-effect: non-scaling-stroke; }
+.part-context-menu { position: fixed; z-index: 150; min-width: 210px; padding: 5px; border: 1px solid var(--border, #3a424f); border-radius: 8px; background: var(--panel, #252b35); color: var(--text, #e4e9f1); box-shadow: 0 12px 32px #0005; }
+.part-context-menu[hidden] { display: none; }
+.part-context-menu button { display: flex; align-items: center; justify-content: space-between; gap: 24px; width: 100%; padding: 10px 12px; border: 0; border-radius: 4px; background: transparent; color: inherit; font: inherit; text-align: left; cursor: pointer; }
+.part-context-menu button:hover:not(:disabled), .part-context-menu button:focus-visible { background: var(--accent-soft, #ffffff12); outline: 1px solid var(--accent, #a9bfdc); outline-offset: -1px; }
+.part-context-menu button:disabled { opacity: .38; cursor: default; }
+.part-context-menu kbd { color: var(--text-muted, #9da5b1); font: 11px 'Bahnschrift', sans-serif; }
+[data-theme="light"] .part-context-menu { background: #f9f8f5; color: #323b49; border-color: #d6d8dd; }
+[data-theme="light"] .hidden-atlas-background { fill: #a5a7ac; }

@@ -1,0 +1,31 @@
+'use strict';
+const test = require('node:test');
+const assert = require('node:assert/strict');
+const fs = require('node:fs/promises');
+const os = require('node:os');
+const path = require('node:path');
+const { DEFAULT_SHORTCUTS, validateShortcuts, normalizeShortcut, shortcutFromEvent, actionForEvent } = require('../app/keybindings.cjs');
+const { Settings } = require('../app/settings.cjs');
+test('custom shortcuts reject conflicts, reserved keys and unmodified native text keys', () => {
+  assert.deepEqual(validateShortcuts(), DEFAULT_SHORTCUTS);
+  assert.throws(() => validateShortcuts({ switchWorkspace: 'Ctrl+S' }), /已用于/);
+  assert.throws(() => validateShortcuts({ save: 'S' }), /组合键/);
+  assert.throws(() => validateShortcuts({ play: 'Alt+F4' }), /系统/);
+  assert.throws(() => validateShortcuts({ play: 'Ctrl+C' }), /系统/);
+  assert.throws(() => validateShortcuts({ fit: 'Ctrl+0' }), /系统/);
+  assert.equal(normalizeShortcut('Shift+Ctrl+P'), 'Ctrl+Shift+P');
+  const keys = validateShortcuts({ switchWorkspace: 'G', play: 'Alt+P' });
+  assert.equal(actionForEvent({ key: 'g', code: 'KeyG' }, keys), 'switchWorkspace');
+  assert.equal(actionForEvent({ key: 'f', code: 'KeyF' }, keys), null);
+  assert.equal(actionForEvent({ key: 'p', code: 'KeyP', altKey: true }, keys), 'play');
+  assert.equal(actionForEvent({ key: 'g', code: 'KeyG', isComposing: true }, keys), null);
+  assert.equal(shortcutFromEvent({ key: '?', code: 'Slash', shiftKey: true }), 'Shift+/');
+  assert.equal(shortcutFromEvent({ key: 'Control', code: 'ControlLeft', ctrlKey: true }), null);
+});
+test('shortcut settings survive restart and invalid updates leave the saved map intact', async t => {
+  const root = await fs.mkdtemp(path.join(os.tmpdir(), 'bdmodder-shortcuts-')); t.after(() => fs.rm(root, { recursive: true, force: true }));
+  const secrets = { isAsyncEncryptionAvailable: async () => true };
+  const first = new Settings(root, secrets); await first.load(); await first.save({ shortcuts: { ...DEFAULT_SHORTCUTS, switchWorkspace: 'G', export: 'Ctrl+Shift+E' } });
+  await assert.rejects(first.save({ shortcuts: { ...DEFAULT_SHORTCUTS, switchWorkspace: 'Ctrl+S' } }), /已用于/);
+  const next = new Settings(root, secrets); const result = await next.load(); assert.equal(result.shortcuts.switchWorkspace, 'G'); assert.equal(result.shortcuts.export, 'Ctrl+Shift+E');
+});

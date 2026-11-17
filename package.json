@@ -1,0 +1,53 @@
+{
+  "name": "bd-modder",
+  "version": "1.2.2",
+  "description": "BD Modder desktop editor",
+  "main": "app/main.cjs",
+  "author": "BD Modder",
+  "private": true,
+  "scripts": {
+    "start": "node scripts/launch.cjs",
+    "build": "node scripts/build.cjs",
+    "test": "node --test tests/*.test.cjs",
+    "pack": "node scripts/package.cjs --dir",
+    "dist": "node scripts/package.cjs"
+  },
+  "dependencies": {
+    "@esotericsoftware/spine-webgl": "4.1.56",
+    "fflate": "0.8.3",
+    "pngjs": "7.0.0"
+  },
+  "devDependencies": {
+    "electron": "45.3.3",
+    "electron-builder": "26.18.0",
+    "esbuild": "0.27.4"
+  },
+  "build": {
+    "appId": "local.bdmodder.desktop",
+    "productName": "BD Modder",
+    "directories": {
+      "output": "release"
+    },
+    "asar": true,
+    "files": [
+      "app/**/*",
+      "renderer/**/*",
+      "node_modules/**/*",
+      "package.json",
+      "THIRD_PARTY_NOTICES.md",
+      "README.md"
+    ],
+    "win": {
+      "target": [
+        {
+          "target": "portable",
+          "arch": [
+            "x64"
+          ]
+        }
+      ],
+      "signAndEditExecutable": false,
+      "artifactName": "BD-Modder-${version}-win-${arch}.${ext}"
+    }
+  }
+}

@@ -1,0 +1,14 @@
+node_modules/
+release/
+renderer/bundle.js
+renderer/bundle.js.map
+docs/*.log
+.test-output/
+release-*/
+docs/*.json
+docs/firewall-admin-launcher.ps1
+docs/*.ps1
+tools/ExportDraftAssets.dll
+tools/ExportDraftAssets.runtimeconfig.json
+tools/ModEditor.dll
+tools/export.rsp
