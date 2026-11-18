@@ -11,6 +11,7 @@ const { crop, edit, mask, decodeBytes, encodeBytes, unpickle } = require('../app
 const { atlasOutlinePath, pickAtlasPart } = require('../app/uv-coverage.cjs');
 const { Generation, normalizeProfile, validateProfile, bind } = require('../app/generation.cjs');
 const { Settings } = require('../app/settings.cjs');
+const { combinedCanvas } = require('../app/combined-canvas.cjs');
 function image() { const png = new PNG({ width: 4, height: 4 }); for (let i = 0; i < png.data.length; i += 4) { png.data[i] = 40; png.data[i + 1] = 80; png.data[i + 2] = 120; png.data[i + 3] = i === 0 ? 0 : 255; } return PNG.sync.write(png); }
 const rect = { x: 0, y: 0, width: 2, height: 2 };
 async function fixture(t) {
@@ -87,6 +88,126 @@ test('mesh exports keep the original RGBA inside the outline and preserve neighb
   assert.deepEqual(pixel(updated, 2, 1), pixel(source, 2, 1));
   assert.deepEqual(pixel(updated, 3, 1), [200, 200, 200, 200]);
   assert.deepEqual(pixel(updated, 3, 3), pixel(source, 3, 3));
+});
+test('combined PNG chooses the smallest supported square without scaling or clipping the pose', () => {
+  const pose = (width, height = 4) => ({ minX: .25, minY: 0, maxX: .25 + width, maxY: height });
+  assert.equal(combinedCanvas(pose(1024.0005)).size, 1024);
+  const full = combinedCanvas(pose(2048));
+  assert.equal(full.size, 2048);
+  assert.equal(full.centerX, 1024.25);
+  assert.equal(combinedCanvas(pose(2048.01)).size, 4096);
+  assert.equal(combinedCanvas(pose(4, 4096.01)).size, 8192);
+  assert.equal(combinedCanvas(pose(8192)).size, 8192);
+  assert.throws(() => combinedCanvas(pose(8192.01)), /8192/);
+});
+test('combined PNG replacement shares samples only within the requested seam width', async t => {
+  const { folder } = await fixture(t);
+  const source = new PNG({ width: 9, height: 4 });
+  for (let i = 0; i < source.data.length; i += 4) source.data.set([120, 85, 145, 160], i);
+  const original = PNG.sync.write(source);
+  await fs.writeFile(path.join(folder, 'page.png'), original);
+  await fs.writeFile(path.join(folder, 'character.atlas'),
+    'page.png\nsize:9,4\nfilter:Linear,Linear\nleft\nbounds:0,0,4,4\nright\nbounds:5,0,4,4\n');
+  const project = new Project(folder);
+  await project.load();
+  const rects = [...project.regions.values()];
+  const draws = rects.map(({ page, name, x, width }, i) => ({
+    page, region: name, opacity: 1, vertices: [i * 2, 4, i * 2 + 4, 4, i * 2 + 4, 0, i * 2, 0],
+    uvs: [x / 9, 0, (x + width) / 9, 0, (x + width) / 9, 1, x / 9, 1],
+    triangles: [0, 1, 2, 2, 3, 0]
+  }));
+  const snapshot = { draws, footprints: draws };
+  const replacement = new PNG({ width: 1024, height: 1024 });
+  const overlap = (510 * replacement.width + 511) * 4;
+  replacement.data.set([48, 131, 115, 255, 55, 152, 108, 255], overlap);
+  const imageBytes = PNG.sync.write(replacement);
+  const replace = seamExpand => project.replaceAssembled(rects, snapshot, imageBytes, seamExpand);
+  const pixel = (image, index) => [...image.data.subarray(index * 4, index * 4 + 4)];
+  await replace(0);
+  const direct = PNG.sync.read(project.page('page.png').bytes);
+  assert.deepEqual(pixel(direct, 5), [48, 131, 115, 160]);
+  assert.deepEqual(pixel(direct, 2), pixel(source, 2));
+  project.undo();
+
+  await replace(1);
+  const shared = PNG.sync.read(project.page('page.png').bytes);
+  assert.deepEqual(pixel(shared, 2), pixel(direct, 5));
+  assert.deepEqual(pixel(shared, 3), pixel(source, 3));
+  assert.deepEqual(pixel(shared, 4), pixel(source, 4));
+  assert.deepEqual(pixel(shared, 11), pixel(source, 11));
+  project.undo();
+
+  await replace(2);
+  const wider = PNG.sync.read(project.page('page.png').bytes);
+  assert.deepEqual(pixel(wider, 3), [55, 152, 108, 160]);
+  project.undo();
+  assert.deepEqual(project.page('page.png').bytes, original);
+  await assert.rejects(replace(1.5), /非负整数/);
+  assert.deepEqual(project.page('page.png').bytes, original);
+});
+test('combined PNG replacement writes to both atlas files with one undo and preserves each page alpha mode', async t => {
+  const { folder } = await fixture(t);
+  const left = new PNG({ width: 5, height: 4 });
+  const right = new PNG({ width: 6, height: 4 });
+  for (let i = 0; i < left.data.length; i += 4) left.data.set([120, 85, 145, 160], i);
+  for (let i = 0; i < right.data.length; i += 4) right.data.set([5, 10, 15, 128], i);
+  const header = Buffer.alloc(16);
+  header.writeInt32LE(4, 8);
+  const leftDisk = path.join(folder, 'page.png');
+  const rightDisk = path.join(folder, 'other.png.bytes');
+  const leftBytes = PNG.sync.write(left);
+  const rightBytes = encodeBytes(PNG.sync.write(right), header);
+  await Promise.all([
+    fs.writeFile(leftDisk, leftBytes),
+    fs.writeFile(rightDisk, rightBytes),
+    fs.writeFile(path.join(folder, 'character.atlas'),
+      'page.png\nsize:5,4\nleft\nbounds:0,0,4,4\n\nother.png\nsize:6,4\npma:true\nright\nbounds:1,0,4,4\n')
+  ]);
+  const project = new Project(folder);
+  await project.load();
+  // Pass the parts in reverse order so draw order cannot depend on page or selection order.
+  const rects = [...project.regions.values()].reverse();
+  const draws = [...rects].reverse().map(({ page, name, x, width }, index) => {
+    const worldX = index * 2, atlasWidth = project.page(page).width;
+    return {
+      page, region: name, opacity: 1,
+      vertices: [worldX, 4, worldX + 4, 4, worldX + 4, 0, worldX, 0],
+      uvs: [x / atlasWidth, 0, (x + width) / atlasWidth, 0, (x + width) / atlasWidth, 1, x / atlasWidth, 1],
+      triangles: [0, 1, 2, 2, 3, 0]
+    };
+  });
+  const snapshot = { draws, footprints: draws, premultipliedPages: ['other.png'] };
+  const replacement = new PNG({ width: 1024, height: 1024 });
+  replacement.data.set([48, 131, 115, 255, 55, 152, 108, 255], (510 * replacement.width + 511) * 4);
+  const imageBytes = PNG.sync.write(replacement);
+  const original = rects.map(rect => project.page(rect.page).bytes);
+  const versions = () => rects.map(rect => project.page(rect.page).bytes);
+  const pixel = (bytes, x) => [...PNG.sync.read(bytes).data.subarray(x * 4, x * 4 + 4)];
+
+  const invalid = { ...snapshot, footprints: [draws[0], { ...draws[1], uvs: [] }] };
+  await assert.rejects(project.replaceAssembled(rects, invalid, imageBytes, 1), /三角形/);
+  assert.deepEqual(versions(), original);
+  assert.equal(project.status().undo, false);
+
+  await project.replaceAssembled(rects, snapshot, imageBytes, 1);
+  const updated = versions();
+  assert.deepEqual(pixel(updated[0], 1), [24, 66, 58, 128]);
+  assert.deepEqual(pixel(updated[1], 2), [48, 131, 115, 160]);
+  assert.deepEqual(pixel(updated[1], 3), pixel(original[1], 3));
+  assert.deepEqual(pixel(updated[0], 0), pixel(original[0], 0));
+  assert.equal(project.revision, 1);
+  assert.equal(project.history.length, 1);
+  assert.deepEqual(await fs.readFile(leftDisk), leftBytes);
+  assert.deepEqual(await fs.readFile(rightDisk), rightBytes);
+
+  project.undo();
+  assert.deepEqual(versions(), original);
+  project.undo(true);
+  assert.deepEqual(versions(), updated);
+  await project.save();
+  assert.deepEqual(await fs.readFile(leftDisk), updated[1]);
+  assert.deepEqual(decodeBytes(await fs.readFile(rightDisk)), updated[0]);
+  assert.equal(project.dirty(), false);
 });
 test('restoring parts recovers original alpha and leaves pixels outside their footprints intact', async t => {
   const { folder } = await fixture(t);

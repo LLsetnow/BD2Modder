@@ -9,6 +9,7 @@ const { formatShortcut } = require('./keybindings.cjs');
 const { task } = require('./tasks.cjs');
 const { runRepaint } = require('./repaint-job.cjs');
 const { partKey } = require('./visibility.cjs');
+const { MAX_COMBINED_PNG_BYTES } = require('./combined-canvas.cjs');
 const { Generation, normalizeProfile, validateProfile } = require('./generation.cjs');
 protocol.registerSchemesAsPrivileged([{ scheme: 'bdapp', privileges: { standard: true, secure: true, supportFetchAPI: true, corsEnabled: true } }, { scheme: 'bdasset', privileges: { standard: true, secure: true, supportFetchAPI: true, corsEnabled: true } }]);
 app.setName('BD Modder');
@@ -151,17 +152,22 @@ function setupHandlers() {
     const p = requireProject(); let rect = null, parts = null;
     if (args.composite) {
       if (args.projectId !== p.id || args.revision !== p.revision) throw Error('项目已变化，请重新选择需要替换的部件。');
-      if (!Array.isArray(args.names) || args.names.length < 2 || args.names.length > 1024 || new Set(args.names).size !== args.names.length) throw Error('请选择至少两个不同的部件。');
-      parts = args.names.map(name => requirePart(p, { page: args.page, name }));
-      const hidden = new Set([...p.hiddenParts.values()].map(partKey));
-      if (parts.some(part => hidden.has(partKey(part)))) throw Error('请先显示所有选中的部件，再替换组合 PNG。');
-      if (!args.snapshot || !Array.isArray(args.snapshot.draws) || !Array.isArray(args.snapshot.footprints)) throw Error('组合 PNG 的 UV 数据无效。');
-      const drawn = new Set(args.snapshot.draws.map(draw => draw.region));
-      if (parts.some(part => !drawn.has(part.name))) throw Error('当前帧没有显示所有选中的部件，请切换到它们都可见的帧后再替换。');
+      if (!Array.isArray(args.parts) || args.parts.length < 2 || args.parts.length > 1024) throw Error('请选择至少两个不同的部件。');
+      parts = args.parts.map(part => requirePart(p, part));
+      const selected = new Set(parts.map(partKey));
+      if (selected.size !== parts.length) throw Error('请选择至少两个不同的部件。');
+      if (parts.some(part => p.hiddenParts.has(partKey(part)))) throw Error('请先显示所有选中的部件，再替换组合 PNG。');
+      const { draws, footprints, premultipliedPages } = args.snapshot ?? {};
+      if (!Array.isArray(draws) || !Array.isArray(footprints) || !Array.isArray(premultipliedPages)) throw Error('组合 PNG 的 UV 数据无效。');
+      const meshKey = mesh => partKey({ page: mesh?.page, name: mesh?.region });
+      if (![draws, footprints].every(meshes => meshes.every(mesh => selected.has(meshKey(mesh))))) throw Error('组合 PNG 的 UV 数据无效。');
+      const drawn = new Set(draws.map(meshKey));
+      if (drawn.size !== selected.size) throw Error('当前帧没有显示所有选中的部件，请切换到它们都可见的帧后再替换。');
     } else rect = args.part ? requirePart(p, args) : null;
     const result = await dialog.showOpenDialog(window, { title: args.composite ? '替换组合 PNG（保持组合导出图的位置和留白）' : args.part ? '替换所选部件（使用图集中存储的方向）' : '替换当前图集页（尺寸须相同）', properties: ['openFile'], filters: [{ name: 'PNG', extensions: ['png'] }] });
-    if (result.canceled) return null; const bytes = await read(result.filePaths[0]);
-    if (args.composite) return p.replaceAssembled(args.page, parts, args.snapshot, bytes);
+    if (result.canceled) return null;
+    const bytes = await read(result.filePaths[0], args.composite ? MAX_COMBINED_PNG_BYTES : undefined);
+    if (args.composite) return p.replaceAssembled(parts, args.snapshot, bytes, args.seamExpand);
     return rect ? p.mutate(rect.page, 'replace', [rect], { image: bytes, meshes: args.meshes }) : p.replacePage(args.page, bytes);
   }));
   handle('bd:export', args => serialized(async () => {
@@ -173,9 +179,17 @@ function setupHandlers() {
       bytes = Buffer.from(await task('crop', { bytes: await p.renderedPage(rect.page), rect, meshes: args.meshes }));
       filename = 'part.png';
     }
-    else if (args.type === 'preview' || args.type === 'parts') {
+    else if (args.type === 'parts') {
+      if (args.projectId !== p.id) throw Error('项目已变化，请重新导出组合 PNG。');
+      const data = args.data;
+      if (!(data instanceof Uint8Array) || data.byteLength < 24 || data.byteLength > MAX_COMBINED_PNG_BYTES) throw Error('导出图像格式无效。');
+      bytes = Buffer.from(data.buffer, data.byteOffset, data.byteLength);
+      if (bytes.toString('hex', 0, 8) !== '89504e470d0a1a0a') throw Error('导出图像格式无效。');
+      filename = 'parts.png';
+    }
+    else if (args.type === 'preview') {
       if (typeof args.data !== 'string' || !/^data:image\/png;base64,/.test(args.data) || args.data.length > 160 * 1024 * 1024) throw Error('导出图像格式无效。');
-      bytes = Buffer.from(args.data.split(',')[1], 'base64'); filename = args.type === 'parts' ? 'parts.png' : 'preview.png';
+      bytes = Buffer.from(args.data.split(',')[1], 'base64'); filename = 'preview.png';
     }
     else throw Error('不支持的导出格式。');
     const result = await dialog.showSaveDialog(window, { title: '导出 ' + filename, defaultPath: path.join(app.getPath('documents'), filename), filters: [{ name: args.type === 'zip' ? 'MOD ZIP' : 'PNG', extensions: [args.type === 'zip' ? 'zip' : 'png'] }] });

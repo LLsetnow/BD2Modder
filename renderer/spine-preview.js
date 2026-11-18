@@ -1,4 +1,6 @@
 import * as spine from '@esotericsoftware/spine-webgl';
+import { combinedCanvas, selectionBounds } from '../app/combined-canvas.cjs';
+import { partKey } from '../app/visibility.cjs';
 import { createPartMeshLookup, fixAtlasRotations, readSpineData, regionRect } from './spine-compat.mjs';
 import { SceneOutlines } from './scene-outlines.js';
 export class SpinePreview {
@@ -59,7 +61,7 @@ export class SpinePreview {
   setPlaying(value) { this.playing = Boolean(value && this.duration()); this.last = 0; this.invalidate(); }
   setZoom(value) { if (Number.isFinite(value)) this.zoom = Math.max(.05, value); this.invalidate(); }
   fit() { if (!this.skeleton) return; this.focus = null; const offset = new spine.Vector2(), size = new spine.Vector2(); this.skeleton.getBounds(offset, size, []); this.bounds = { x: offset.x, y: offset.y, width: Math.max(size.x, 1), height: Math.max(size.y, 1) }; this.zoom = 1; this.pan = { x: 0, y: 0 }; this.invalidate(); }
-  locate(name) { const draws = this.geometry().filter(d => d.region === name); if (!draws.length) return false; const v = draws.flatMap(d => [...d.vertices]), xs = v.filter((_, i) => i % 2 === 0), ys = v.filter((_, i) => i % 2); this.focus = { x: (Math.min(...xs) + Math.max(...xs)) / 2, y: (Math.min(...ys) + Math.max(...ys)) / 2 }; this.pan = { x: 0, y: 0 }; this.setZoom(Math.max(this.zoom, 2)); return true; }
+  locate(part) { const draws = this.geometry().filter(d => d.page === part.page && d.region === part.name); if (!draws.length) return false; const v = draws.flatMap(d => [...d.vertices]), xs = v.filter((_, i) => i % 2 === 0), ys = v.filter((_, i) => i % 2); this.focus = { x: (Math.min(...xs) + Math.max(...xs)) / 2, y: (Math.min(...ys) + Math.max(...ys)) / 2 }; this.pan = { x: 0, y: 0 }; this.setZoom(Math.max(this.zoom, 2)); return true; }
   geometry(includeHidden = false) {
     if (!this.skeleton) return [];
     const output = [], clip = new spine.SkeletonClipping(), white = new spine.Color(1, 1, 1, 1), black = new spine.Color(0, 0, 0, 1);
@@ -79,7 +81,7 @@ export class SpinePreview {
     }
     clip.clipEnd(); return output;
   }
-  selectedDraws() { return this.geometry().filter(draw => this.selected.has(draw.region)); }
+  selectedDraws() { return this.geometry().filter(draw => this.selected.has(partKey({ page: draw.page, name: draw.region }))); }
   filteredSkeleton(include) {
     // Keep every slot in draw order so any slot can end a clipping attachment.
     const drawOrder = this.skeleton.drawOrder.map(slot => {
@@ -97,7 +99,7 @@ export class SpinePreview {
     return this.filteredSkeleton((slot, attachment) => {
       attachment?.sequence?.apply(slot, attachment);
       const region = attachment?.region;
-      return this.selected.has(region?.name) && !this.isHiddenRegion(region);
+      return region && this.selected.has(partKey({ page: region.page.name, name: region.name })) && !this.isHiddenRegion(region);
     });
   }
   visibleSkeleton() {
@@ -108,12 +110,12 @@ export class SpinePreview {
       return !this.isHiddenRegion(attachment.region);
     });
   }
-  repaintSnapshot(page, names) {
-    const selected = new Set(names);
-    const isSelected = region => region?.page.name === page && selected.has(region.name);
-    const draws = this.geometry().filter(draw => draw.page === page && selected.has(draw.region)).map(draw => {
+  repaintSnapshot(parts) {
+    const selected = new Set(parts.map(partKey));
+    const pages = new Set(parts.map(part => part.page));
+    const draws = this.geometry().filter(draw => selected.has(partKey({ page: draw.page, name: draw.region }))).map(draw => {
       const opacity = draw.slot.color.a * draw.slot.getAttachment().color.a * this.skeleton.color.a;
-      return { region: draw.region, opacity, vertices: Array.from(draw.vertices), triangles: Array.from(draw.triangles), uvs: Array.from(draw.uvs) };
+      return { page: draw.page, region: draw.region, opacity, vertices: Array.from(draw.vertices), triangles: Array.from(draw.triangles), uvs: Array.from(draw.uvs) };
     });
     const attachments = new Set(this.skeleton.drawOrder.map(slot => slot.getAttachment()));
     for (const skin of new Set([this.skeleton.skin, this.data.defaultSkin])) {
@@ -121,16 +123,17 @@ export class SpinePreview {
     }
     const footprints = [];
     for (const attachment of attachments) {
-      if (!isSelected(attachment?.region)) continue;
+      const region = attachment?.region;
+      if (!region || !selected.has(partKey({ page: region.page.name, name: region.name }))) continue;
       let triangles;
       if (attachment instanceof spine.RegionAttachment) triangles = [0, 1, 2, 2, 3, 0];
       else if (attachment instanceof spine.MeshAttachment) triangles = Array.from(attachment.triangles);
       else continue;
-      footprints.push({ region: attachment.region.name, triangles, uvs: Array.from(attachment.uvs) });
+      footprints.push({ page: region.page.name, region: region.name, triangles, uvs: Array.from(attachment.uvs) });
     }
     return {
       draws, footprints, animation: this.animation, time: this.time,
-      premultiplied: Boolean(this.atlas.pages.find(item => item.name === page)?.pma)
+      premultipliedPages: this.atlas.pages.filter(page => pages.has(page.name) && page.pma).map(page => page.name)
     };
   }
   pick(x, y) {
@@ -144,7 +147,7 @@ export class SpinePreview {
       if (u < 0 || w < 0 || u + w > 1) continue;
       const uv = draw.uvs, tx = uv[a] * u + uv[b] * w + uv[c] * (1 - u - w), ty = uv[a + 1] * u + uv[b + 1] * w + uv[c + 1] * (1 - u - w), page = this.pages.get(draw.page);
       const px = Math.max(0, Math.min(page.width - 1, Math.floor(tx * page.width))), py = Math.max(0, Math.min(page.height - 1, Math.floor(ty * page.height)));
-      if (page.pixels[(py * page.width + px) * 4 + 3] > 12) return draw.region;
+      if (page.pixels[(py * page.width + px) * 4 + 3] > 12) return partKey({ page: draw.page, name: draw.region });
     }
     return null;
   }
@@ -226,49 +229,52 @@ export class SpinePreview {
       if (this.selectionOnly && !this.gl.isContextLost()) this.drawSkeleton(this.selectionSkeleton());
     }
   }
-  captureSelection() {
+  async captureSelection() {
     const draws = this.selectedDraws();
     if (!draws.length) throw Error('当前帧没有可导出的选中部件。');
 
-    let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
-    for (const { vertices, triangles } of draws) for (const index of triangles) {
-      const x = vertices[index * 2], y = vertices[index * 2 + 1];
-      minX = Math.min(minX, x); minY = Math.min(minY, y);
-      maxX = Math.max(maxX, x); maxY = Math.max(maxY, y);
-    }
-    const width = maxX - minX, height = maxY - minY;
-    const extent = Math.max(width, height);
-    if (!Number.isFinite(extent) || width <= 0 || height <= 0) throw Error('当前选区的导出尺寸无效。');
-    // Ignore floating-point noise at pixel boundaries.
-    const pixelTolerance = .001;
-    const size = extent <= 1024 + pixelTolerance ? 1024 : 2048;
-    if (extent > size + pixelTolerance) throw Error('选中部件的原尺寸超出 2048 × 2048 画布。');
+    const { size, centerX, centerY } = combinedCanvas(selectionBounds(draws));
     const { canvas, gl, renderer } = this;
     const [maxWidth, maxHeight] = gl.getParameter(gl.MAX_VIEWPORT_DIMS) || [0, 0];
-    if (size > Math.min(maxWidth, maxHeight)) throw Error('当前选区的原尺寸超出显卡支持的导出范围。');
+    // WebGL can clamp the drawing buffer below its advertised viewport limit.
+    const tile = Math.min(size, 4096, maxWidth, maxHeight, gl.getParameter(gl.MAX_RENDERBUFFER_SIZE));
+    if (!tile) throw Error('无法创建组合 PNG 的绘制画布。');
+    const output = size === tile ? canvas : document.createElement('canvas');
+    let stitch;
+    if (output !== canvas) {
+      output.width = output.height = size;
+      stitch = output.getContext('2d', { willReadFrequently: true });
+      if (!stitch) throw Error('无法创建组合 PNG 的拼接画布。');
+    }
 
     const skeleton = this.selectionSkeleton(draws);
-    const center = (min, max) => {
-      const midpoint = (min + max) / 2;
-      const aligned = Math.round(midpoint);
-      return Math.max(max - aligned, aligned - min) <= size / 2 + pixelTolerance ? aligned : midpoint;
-    };
-    const camera = new spine.OrthoCamera(size, size);
-    camera.position.set(center(minX, maxX), center(minY, maxY), 0);
     const previewCamera = renderer.camera, previewWidth = canvas.width, previewHeight = canvas.height;
+    let pending;
     try {
-      canvas.width = size; canvas.height = size;
-      if (gl.drawingBufferWidth !== size || gl.drawingBufferHeight !== size) throw Error('无法创建原尺寸的导出画布。');
-      renderer.camera = camera;
-      this.drawSkeleton(skeleton);
-      const data = canvas.toDataURL('image/png');
-      if (data === 'data:,') throw Error('无法生成组合 PNG。');
-      return data;
+      for (let y = 0; y < size; y += tile) for (let x = 0; x < size; x += tile) {
+        const width = Math.min(tile, size - x), height = Math.min(tile, size - y);
+        if (canvas.width !== width) canvas.width = width;
+        if (canvas.height !== height) canvas.height = height;
+        if (gl.drawingBufferWidth !== width || gl.drawingBufferHeight !== height) throw Error('无法创建组合 PNG 的绘制画布。');
+        const camera = new spine.OrthoCamera(width, height);
+        camera.position.set(centerX + x + (width - size) / 2, centerY - y + (size - height) / 2, 0);
+        renderer.camera = camera;
+        this.drawSkeleton(skeleton);
+        stitch?.drawImage(canvas, x, y);
+      }
+      pending = new Promise((resolve, reject) => {
+        output.toBlob(blob => {
+          if (blob) resolve(blob);
+          else reject(Error('无法生成组合 PNG。'));
+        }, 'image/png');
+      });
     } finally {
       canvas.width = previewWidth; canvas.height = previewHeight;
       renderer.camera = previewCamera;
       if (!gl.isContextLost()) this.drawSkeleton(this.selectionOnly ? skeleton : this.visibleSkeleton());
     }
+    const blob = await pending;
+    return new Uint8Array(await blob.arrayBuffer());
   }
   dispose() { cancelAnimationFrame(this.request); this.resizeObserver.disconnect(); this.atlas?.dispose(); this.sceneOutlines?.dispose(); this.renderer.dispose(); this.pages.clear(); }
 }

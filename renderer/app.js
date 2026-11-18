@@ -4,6 +4,7 @@ import { SpinePreview } from './spine-preview.js';
 import { SettingsPage } from './settings-page.js';
 import { DEFAULT_SHORTCUTS, actionForEvent, formatShortcut } from '../app/keybindings.cjs';
 import { atlasOutlinePath, pickAtlasPart } from '../app/uv-coverage.cjs';
+import { partKey } from '../app/visibility.cjs';
 import { PartContextMenu } from './part-visibility.js';
 const $ = selector => document.querySelector(selector);
 const $$ = selector => [...document.querySelectorAll(selector)];
@@ -109,7 +110,8 @@ for (const input of repaintInputs) {
     persist();
   });
 }
-const region = name => state.info?.regions.find(r => r.name === name);
+const region = key => state.info?.regionsByKey.get(key);
+const drawPartKey = draw => partKey({ page: draw.page, name: draw.region });
 const primary = () => region([...state.selected].at(-1));
 const isHidden = r => state.project?.hiddenParts?.some(p => p.page === r.page && p.name === r.name) || false;
 const partMenu = new PartContextMenu();
@@ -181,6 +183,7 @@ async function openDescriptor(descriptor) {
     setSelectionOnly(false);
     if (state.settings && descriptor.recent) state.settings.recent = descriptor.recent;
     state.info = await preview.load(descriptor); state.page = state.info.regions[0]?.page || descriptor.pages[0].name;
+    state.info.regionsByKey = new Map(state.info.regions.map(part => [partKey(part), part]));
     preview.selected = state.selected;
     $('#project-title').textContent = descriptor.name; $('#asset-title').textContent = descriptor.name; $('#file-summary').textContent = `${descriptor.fileCount} 个文件 · ${(descriptor.totalBytes / 1048576).toFixed(1)} MiB`;
     $('#spine-version').textContent = 'Spine ' + state.info.version; $('#part-count').textContent = state.info.regions.length; $('#texture-page-count').textContent = descriptor.pages.length;
@@ -209,23 +212,27 @@ function thumbnail(r) {
 }
 function renderLibrary() {
   const list = $('#part-list'); list.replaceChildren(); if (!state.info) return;
-  const visible = new Set(preview.geometry(true).map(d => d.region)); state.visibleSignature = [...visible].sort().join('\0');
-  const hidden = new Set(state.project.hiddenParts.map(r => r.name)); $('#filter-hidden-count').textContent = hidden.size;
-  const parts = state.info.regions.filter(r => (!state.search || r.name.toLowerCase().includes(state.search)) && (state.filter === 'all' || state.filter === 'selected' && state.selected.has(r.name) || state.filter === 'visible' && visible.has(r.name) || state.filter === 'hidden' && hidden.has(r.name)));
+  const visible = new Set(preview.geometry(true).map(drawPartKey)); state.visibleSignature = [...visible].sort().join('\0');
+  const hidden = new Set(state.project.hiddenParts.map(partKey)); $('#filter-hidden-count').textContent = hidden.size;
+  const parts = state.info.regions.filter(r => {
+    if (state.search && !r.name.toLowerCase().includes(state.search)) return false;
+    const key = partKey(r);
+    return state.filter === 'all' || state.filter === 'selected' && state.selected.has(key) ||
+      state.filter === 'visible' && visible.has(key) || state.filter === 'hidden' && hidden.has(key);
+  });
   const fragment = document.createDocumentFragment();
   for (const r of parts) {
-    const hidden = isHidden(r), row = document.createElement('button'); row.className = 'part-row' + (hidden ? ' is-hidden' : ''); row.setAttribute('role', 'option'); row.setAttribute('aria-selected', String(state.selected.has(r.name))); row.dataset.region = r.name;
-    row.innerHTML = `<span class="part-thumbnail checker"><img loading="lazy" src="${thumbnail(r)}" alt=""></span><span class="part-info"><strong>${escape(r.name)}</strong><small>${hidden ? '已隐藏 · ' : ''}${r.width} × ${r.height}</small></span><span class="part-check" aria-hidden="true">${state.selected.has(r.name) ? '✓' : ''}</span>`;
-    row.onclick = event => select(r.name, event.ctrlKey || event.metaKey, event.shiftKey ? parts : []);
+    const key = partKey(r), hidden = isHidden(r), row = document.createElement('button'); row.className = 'part-row' + (hidden ? ' is-hidden' : ''); row.setAttribute('role', 'option'); row.setAttribute('aria-selected', String(state.selected.has(key))); row.dataset.region = r.name; row.dataset.partKey = key;
+    row.innerHTML = `<span class="part-thumbnail checker"><img loading="lazy" src="${thumbnail(r)}" alt=""></span><span class="part-info"><strong>${escape(r.name)}</strong><small>${hidden ? '已隐藏 · ' : ''}${r.width} × ${r.height}</small></span><span class="part-check" aria-hidden="true">${state.selected.has(key) ? '✓' : ''}</span>`;
+    row.onclick = event => select(key, event.ctrlKey || event.metaKey, event.shiftKey ? parts : []);
     row.oncontextmenu = event => {
       event.preventDefault();
       if (!state.ready) return;
-      if (!state.selected.has(r.name)) select(r.name);
+      if (!state.selected.has(key)) select(key);
       const parts = [...state.selected].map(region);
       const canIsolate = parts.some(part => !isHidden(part));
-      const groups = groupedSelection();
-      const canReplace = !state.generating && parts.length > 0 && (parts.length === 1 || groups.size === 1 && !parts.some(isHidden));
-      partMenu.show(event, $$('.part-row').find(el => el.dataset.region === r.name), {
+      const canReplace = !state.generating && parts.length > 0 && (parts.length === 1 || !parts.some(isHidden));
+      partMenu.show(event, $$('.part-row').find(el => el.dataset.partKey === key), {
         count: parts.length, canHide: !state.generating && canIsolate, canShow: !state.generating && parts.some(isHidden),
         canReplace, canExport: !state.generating && parts.length > 0,
         canIsolate, selectionOnly: preview.selectionOnly, shortcut: state.settings?.shortcuts.hide || 'H',
@@ -238,21 +245,21 @@ function renderLibrary() {
   }
   list.append(fragment); $('#list-caption').textContent = `${parts.length} 个部件`; if (!parts.length) { const empty = document.createElement('p'); empty.className = 'list-empty'; empty.textContent = state.filter === 'hidden' && !hidden.size ? '还没有隐藏的部件' : '没有匹配的部件'; list.append(empty); }
 }
-function select(name, additive = false, rangeParts = []) {
-  if (!region(name)) return;
-  const anchorIndex = rangeParts.findIndex(part => part.name === state.selectionAnchor);
-  const targetIndex = rangeParts.findIndex(part => part.name === name);
+function select(key, additive = false, rangeParts = []) {
+  if (!region(key)) return;
+  const anchorIndex = rangeParts.findIndex(part => partKey(part) === state.selectionAnchor);
+  const targetIndex = rangeParts.findIndex(part => partKey(part) === key);
   if (!additive) state.selected.clear();
   if (anchorIndex >= 0 && targetIndex >= 0) {
     const from = Math.min(anchorIndex, targetIndex), to = Math.max(anchorIndex, targetIndex);
-    for (let i = from; i <= to; i++) state.selected.add(rangeParts[i].name);
+    for (let i = from; i <= to; i++) state.selected.add(partKey(rangeParts[i]));
     // Keep the clicked endpoint as the primary selection.
-    state.selected.delete(name);
-    state.selected.add(name);
+    state.selected.delete(key);
+    state.selected.add(key);
   } else {
-    if (additive && state.selected.has(name)) state.selected.delete(name);
-    else state.selected.add(name);
-    state.selectionAnchor = name;
+    if (additive && state.selected.has(key)) state.selected.delete(key);
+    else state.selected.add(key);
+    state.selectionAnchor = key;
   }
   const r = primary();
   if (r) state.page = r.page;
@@ -282,11 +289,10 @@ function renderProperties() {
   $('#filter-selected-count').textContent = count; $('#selected-count').textContent = `${count} 个已选部件`; $('#ai-selection-hint').textContent = count ? `当前选区：${count} 个部件。只修改选区所在的当前图集页。` : '先选择需要修改的部件。';
   for (const id of ['locate-button', 'go-ai', 'tint-parts', 'hide-parts', 'restore-parts']) $('#' + id).disabled = !state.ready || !r || state.generating;
   $('#hide-parts').disabled ||= hiddenCount === count; $('#show-parts').disabled = !state.ready || !hiddenCount || state.generating;
-  const replaceGroups = groupedSelection();
-  const replaceUnavailable = count > 1 && (replaceGroups.size !== 1 || hiddenCount > 0);
+  const replaceUnavailable = count > 1 && hiddenCount > 0;
   $('#replace-part').disabled = !state.ready || !count || state.generating || replaceUnavailable;
   $('#replace-part').textContent = count > 1 ? '替换组合 PNG' : '替换 PNG';
-  $('#replace-part').title = count > 1 && replaceGroups.size !== 1 ? '组合替换仅支持同一图集页。' : count > 1 && hiddenCount ? '请先显示所有选中的部件，再替换组合 PNG。' : '';
+  $('#replace-part').title = replaceUnavailable ? '请先显示所有选中的部件，再替换组合 PNG。' : '';
   $('#export-part').disabled = !state.ready || !count || state.generating;
   $('#export-part').textContent = count > 1 ? '导出组合 PNG' : '导出部件';
   const unavailable = !state.ready || !r || state.generating || Boolean(state.repaintPreview);
@@ -319,7 +325,7 @@ function renderAtlas() {
     if (!atlasOutlines.has(atlas)) atlasOutlines.set(atlas, new Map());
     const paths = atlasOutlines.get(atlas);
     for (const part of state.info.regions) {
-      if (part.page !== p.name || !state.selected.has(part.name)) continue;
+      if (part.page !== p.name || !state.selected.has(partKey(part))) continue;
       if (!paths.has(part.name)) paths.set(part.name, atlasOutlinePath(atlas, part, preview.partMeshes(part)));
       const d = paths.get(part.name);
       if (!d) continue;
@@ -338,14 +344,14 @@ function fit() { if (state.target === 'atlas') { state.atlasZoom = 1; state.atla
 let lastFrameUI = 0, lastVisibleCheck = 0;
 function updateFrame(frame) {
   const now = performance.now(); if (now - lastFrameUI > 80 || !frame.playing) { $('#time-current').textContent = seconds(frame.time); $('#time-total').textContent = seconds(frame.duration); $('#timeline-range').max = String(Math.max(1, Math.round(frame.duration * 1000))); $('#timeline-range').value = String(Math.round(frame.time * 1000)); $('#timeline-range').style.setProperty('--progress', `${frame.duration ? frame.time / frame.duration * 100 : 0}%`); $('#render-resolution').textContent = frame.resolution.join(' × '); $('#play-button').setAttribute('aria-pressed', String(frame.playing)); $('#play-button').setAttribute('aria-label', frame.playing ? '暂停动画' : '播放动画'); $('#play-button').textContent = frame.playing ? 'Ⅱ' : '▶'; updateZoom(); lastFrameUI = now; }
-  if (frame.playing && state.filter === 'visible' && now - lastVisibleCheck > 500) { const signature = [...new Set(preview.geometry(true).map(d => d.region))].sort().join('\0'); if (signature !== state.visibleSignature) renderLibrary(); lastVisibleCheck = now; }
+  if (frame.playing && state.filter === 'visible' && now - lastVisibleCheck > 500) { const signature = [...new Set(preview.geometry(true).map(drawPartKey))].sort().join('\0'); if (signature !== state.visibleSignature) renderLibrary(); lastVisibleCheck = now; }
 }
-function groupedSelection() { const result = new Map(); for (const name of state.selected) { const r = region(name); if (r) { if (!result.has(r.page)) result.set(r.page, []); result.get(r.page).push(r); } } return result; }
+function groupedSelection() { const result = new Map(); for (const key of state.selected) { const r = region(key); if (r) { if (!result.has(r.page)) result.set(r.page, []); result.get(r.page).push(r); } } return result; }
 async function refresh(result, page) {
   if (!result) return; if (result.skeletonBytes) return openDescriptor(result);
   const previewPage = state.repaintPreview?.page;
   state.repaintPreview = null;
-  if (page && previewPage && previewPage !== page) page = undefined;
+  if (page && previewPage) page = [].concat(page, previewPage);
   status(result); state.thumbnails.clear(); await preview.refreshTextures(state.project, page); renderLibrary(); renderProperties(); renderAtlas();
 }
 async function edit(operation, options) {
@@ -378,28 +384,60 @@ function exportDialog() {
   $('#export-zip').onclick = () => guard(() => exportFile({ type: 'zip' })); $('#export-texture').onclick = () => guard(() => exportFile({ type: 'page', page: state.page })); $('#export-scene').onclick = () => guard(() => exportFile({ type: 'preview', data: preview.capture() })); $('#save-as').onclick = () => guard(async () => { closeModal(); await save(true); });
 }
 async function exportFile(payload) { closeModal(); const file = await window.bd.export(payload); if (file) toast('已导出：' + file); }
+function promptCompositeSeamWidth() {
+  return new Promise(resolve => {
+    let seamExpand = null;
+    modal('替换组合 PNG', `
+      <form id="composite-replace-options">
+        <label class="dialog-field field-label">交界宽度（px）
+          <input id="composite-seam-expand" type="number" min="0" max="${Number.MAX_SAFE_INTEGER}" step="1" required aria-describedby="composite-seam-help">
+        </label>
+        <p class="help-text" id="composite-seam-help">按组装图像素计算，让相邻部件的重叠边缘共用取色。设为 0 可关闭。</p>
+      </form>`, [
+      { label: '取消', run: closeModal },
+      { label: '选择 PNG', primary: true, run: () => form.requestSubmit() }
+    ]);
+    const form = $('#composite-replace-options');
+    const input = $('#composite-seam-expand');
+    const saved = preferences.compositeSeamExpand;
+    input.value = isRepaintDistance(saved) ? saved : repaintControls.seamExpand.standard;
+    form.addEventListener('submit', event => {
+      event.preventDefault();
+      const value = input.valueAsNumber;
+      if (!isRepaintDistance(value)) return;
+      seamExpand = value;
+      closeModal();
+    });
+    $('#action-dialog').addEventListener('close', () => resolve(seamExpand), { once: true });
+    input.focus();
+  });
+}
 async function replaceSelectedPng() {
   if (state.selected.size > 1) {
-    const groups = groupedSelection();
-    if (groups.size !== 1) throw Error('组合替换请选择同一张图集页上的部件。');
-    const [page, rects] = [...groups][0];
-    if (rects.some(isHidden)) throw Error('请先显示所有选中的部件，再替换组合 PNG。');
+    const selected = [...state.selected].map(region);
+    if (selected.some(isHidden)) throw Error('请先显示所有选中的部件，再替换组合 PNG。');
+    const parts = selected.map(({ page, name }) => ({ page, name }));
+    const pages = [...new Set(parts.map(part => part.page))];
+    const { id: projectId, revision } = state.project;
     const playback = preview.playing;
     preview.setPlaying(false);
     try {
-      const names = rects.map(part => part.name);
-      const snapshot = preview.repaintSnapshot(page, names);
+      const snapshot = preview.repaintSnapshot(parts);
+      const seamExpand = await promptCompositeSeamWidth();
+      if (seamExpand === null) return;
+      preferences.compositeSeamExpand = seamExpand;
+      persist();
       await refresh(await window.bd.replace({
-        composite: true, page, names, snapshot, projectId: state.project.id, revision: state.project.revision
-      }), page);
-    } finally { preview.setPlaying(playback); }
+        composite: true, parts, snapshot, projectId, revision, seamExpand
+      }), pages);
+    } finally { if (state.project?.id === projectId) preview.setPlaying(playback); }
     return;
   }
   const r = primary();
   await refresh(await window.bd.replace({ part: true, page: r.page, name: r.name, meshes: preview.partMeshes(r) }), r.page);
 }
-function exportSelectedPng() {
-  if (state.selected.size > 1) return exportFile({ type: 'parts', data: preview.captureSelection() });
+async function exportSelectedPng() {
+  if (state.selected.size > 1) return exportFile({ type: 'parts', projectId: state.project.id, data: await preview.captureSelection() });
   const r = primary();
   return exportFile({ type: 'part', page: r.page, name: r.name, meshes: preview.partMeshes(r) });
 }
@@ -449,7 +487,7 @@ async function generateRepaint() {
   });
   const playback = { animation: preview.animation, time: preview.time, playing: preview.playing };
   preview.setPlaying(false);
-  const snapshot = preview.repaintSnapshot(page, names);
+  const snapshot = preview.repaintSnapshot(rects);
   state.generating = true;
   renderProperties();
   $('#cancel-generation').hidden = false;
@@ -541,13 +579,14 @@ function setupPointer(id, target) {
 
     const bounds = (target === 'atlas' ? $('#atlas-sheet') : viewport).getBoundingClientRect();
     const x = event.clientX - bounds.left, y = event.clientY - bounds.top;
-    let name;
+    let key;
     if (target === 'atlas') {
       const page = preview.pages.get(state.page);
       if (!page || !bounds.width || !bounds.height) return;
-      name = pickAtlasPart(state.info.regions, state.page, page, x / bounds.width * page.width, y / bounds.height * page.height, preview.partMeshes);
-    } else name = preview.pick(x, y);
-    if (name) select(name, event.ctrlKey || event.metaKey);
+      const name = pickAtlasPart(state.info.regions, state.page, page, x / bounds.width * page.width, y / bounds.height * page.height, preview.partMeshes);
+      if (name) key = partKey({ page: state.page, name });
+    } else key = preview.pick(x, y);
+    if (key) select(key, event.ctrlKey || event.metaKey);
   });
   viewport.addEventListener('pointercancel', () => drag = null);
   viewport.addEventListener('wheel', event => { if (!state.ready || event.target.closest('select')) return; event.preventDefault(); state.target = target; zoom(event.deltaY < 0 ? .1 : -.1); }, { passive: false });
@@ -574,7 +613,7 @@ $('#go-ai').onclick = () => { setInspectorOpen(true); setInspector('ai'); }; $('
 $('#mesh-toggle').onclick = () => { preview.mesh = !preview.mesh; $('#mesh-toggle').setAttribute('aria-pressed', String(preview.mesh)); preview.invalidate(); };
 $('#bones-toggle').onclick = () => { preview.bones = !preview.bones; $('#bones-toggle').setAttribute('aria-pressed', String(preview.bones)); preview.invalidate(); };
 $('#selection-toggle').onchange = event => { preview.outline = event.target.checked; preview.invalidate(); renderAtlas(); };
-$('#locate-button').onclick = () => { state.target = 'scene'; if (preferences.layout !== 'compare') setView('scene'); if (!preview.locate(primary().name)) { setView('atlas'); toast('该部件在当前动画隐藏，已在图集中定位。'); } };
+$('#locate-button').onclick = () => { state.target = 'scene'; if (preferences.layout !== 'compare') setView('scene'); if (!preview.locate(primary())) { setView('atlas'); toast('该部件在当前动画隐藏，已在图集中定位。'); } };
 $('#tint-parts').onclick = () => guard(() => edit('tint', { color: $('#tint-color').value, strength: Number($('#tint-strength').value) })); $('#hide-parts').onclick = () => guard(() => changeVisibility(true)); $('#show-parts').onclick = () => guard(() => changeVisibility(false)); $('#restore-parts').onclick = () => guard(() => edit('restore'));
 $('#replace-part').onclick = () => guard(replaceSelectedPng);
 $('#replace-page').onclick = () => guard(async () => refresh(await window.bd.replace({ page: state.page }), state.page));

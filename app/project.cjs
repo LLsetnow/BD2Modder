@@ -12,8 +12,8 @@ function safeRelative(name) {
   return name;
 }
 function inside(root, target) { const rel = path.relative(path.resolve(root), path.resolve(target)); return rel !== '' && !rel.startsWith('..' + path.sep) && rel !== '..' && !path.isAbsolute(rel); }
-async function regular(file) { const stat = await fs.lstat(file); if (!stat.isFile() || stat.isSymbolicLink() || stat.size > MAX_FILE) throw Error('不支持链接、非普通文件或超大文件：' + path.basename(file)); return stat; }
-async function read(file) { await regular(file); return fs.readFile(file); }
+async function regular(file, maxBytes = MAX_FILE) { const stat = await fs.lstat(file); if (!stat.isFile() || stat.isSymbolicLink() || stat.size > maxBytes) throw Error('不支持链接、非普通文件或超大文件：' + path.basename(file)); return stat; }
+async function read(file, maxBytes) { await regular(file, maxBytes); return fs.readFile(file); }
 async function filesUnder(root) {
   const result = []; let total = 0;
   async function visit(dir) {
@@ -85,9 +85,12 @@ class Project {
   descriptor() { return { ...this.status(), name: path.basename(this.root), atlasName: this.atlasName, atlasText: this.atlasText, skeletonName: this.skeletonName, skeletonBytes: this.skeletonBytes, pages: [...this.pages.values()].map(({ name, width, height }) => ({ name, width, height })), fileCount: this.files.length, totalBytes: this.totalBytes }; }
   page(name) { const value = this.pages.get(name); if (!value) throw Error('未找到该图集页。'); return value; }
   checkpoint(change) {
+    const size = c => c.pages
+      ? c.pages.reduce((sum, page) => sum + page.before.length + page.after.length, 0)
+      : (c.before?.length || 0) + (c.after?.length || 0);
     this.history.push(change); this.future = []; this.revision++; this.renderCache.clear();
-    let bytes = this.history.reduce((sum, c) => sum + (c.before?.length || 0) + (c.after?.length || 0), 0);
-    while (this.history.length > 1 && (this.history.length > 30 || bytes > 256 * 1024 * 1024)) { const c = this.history.shift(); bytes -= (c.before?.length || 0) + (c.after?.length || 0); }
+    let bytes = this.history.reduce((sum, c) => sum + size(c), 0);
+    while (this.history.length > 1 && (this.history.length > 30 || bytes > 256 * 1024 * 1024)) bytes -= size(this.history.shift());
   }
   setVisibility(parts, hidden) {
     if (this.lock) throw Error('后台操作执行中。');
@@ -131,22 +134,55 @@ class Project {
   }
   async mutate(name, operation, rects, options) {
     if (this.lock) throw Error('正在处理上一项操作。'); this.lock = true;
-    try { const page = this.page(name); if (operation === 'restore') options = { image: page.original }; const next = Buffer.from(await task('edit', { bytes: page.bytes, operation, rects, options })); if (!next.equals(page.bytes)) { this.checkpoint({ page: name, before: page.bytes, after: next }); page.bytes = next; } return this.status(); } finally { this.lock = false; }
-  }
-  async replaceAssembled(name, rects, snapshot, imageBytes) {
-    if (this.lock) throw Error('正在处理上一项操作。'); this.lock = true;
     try {
       const page = this.page(name);
-      const next = Buffer.from(await task('repaintReplace', { atlasBytes: page.bytes, rects, snapshot, imageBytes }));
-      if (!next.equals(page.bytes)) { this.checkpoint({ page: name, before: page.bytes, after: next }); page.bytes = next; }
-      return this.status();
+      if (operation === 'restore') options = { image: page.original };
+      const next = await task('edit', { bytes: page.bytes, operation, rects, options });
+      return this.updatePages([{ name, bytes: next }]);
     } finally { this.lock = false; }
+  }
+  async replaceAssembled(rects, snapshot, imageBytes, seamExpand) {
+    if (this.lock) throw Error('正在处理上一项操作。'); this.lock = true;
+    try {
+      const names = new Set(rects.map(rect => rect.page));
+      const atlases = [...names].map(name => ({ name, bytes: this.page(name).bytes }));
+      const updates = await task('repaintReplace', { atlases, rects, snapshot, imageBytes, seamExpand });
+      return this.updatePages(updates);
+    } finally { this.lock = false; }
+  }
+  updatePages(updates) {
+    const pages = [];
+    for (const { name, bytes } of updates) {
+      const before = this.page(name).bytes;
+      const after = Buffer.from(bytes);
+      if (!after.equals(before)) pages.push({ name, before, after });
+    }
+    if (pages.length) {
+      this.checkpoint({ pages });
+      for (const { name, after } of pages) this.page(name).bytes = after;
+    }
+    return this.status();
   }
   async replacePage(name, bytes) {
     const page = this.page(name); return this.mutate(name, 'merge', [{ x: 0, y: 0, width: page.width, height: page.height }], { image: bytes });
   }
   setManifest(text) { if (typeof text !== 'string' || text.length > 1024 * 1024) throw Error('modfile 配置过大。'); validateManifest(JSON.parse(text)); if (text !== this.manifestText) { this.checkpoint({ manifest: true, before: this.manifestText, after: text }); this.manifestText = text; } return this.status(); }
-  undo(redo = false) { if (this.lock) throw Error('后台操作执行中。'); const from = redo ? this.future : this.history, to = redo ? this.history : this.future, change = from.pop(); if (change) { const value = redo ? change.after : change.before; if (change.manifest) this.manifestText = value; else if (change.visibility) this.hiddenParts = new Map(value.map(r => [partKey(r), r])); else this.page(change.page).bytes = value; to.push(change); this.revision++; this.renderCache.clear(); } return this.status(); }
+  undo(redo = false) {
+    if (this.lock) throw Error('后台操作执行中。');
+    const from = redo ? this.future : this.history;
+    const to = redo ? this.history : this.future;
+    const change = from.pop();
+    if (change) {
+      const side = redo ? 'after' : 'before';
+      if (change.manifest) this.manifestText = change[side];
+      else if (change.visibility) this.hiddenParts = new Map(change[side].map(r => [partKey(r), r]));
+      else for (const page of change.pages) this.page(page.name).bytes = page[side];
+      to.push(change);
+      this.revision++;
+      this.renderCache.clear();
+    }
+    return this.status();
+  }
   async materialize() {
     const out = {};
     for (const name of this.files) out[name] = await read(path.join(this.root, name));

@@ -2,6 +2,8 @@
 
 const { PNG } = require('pngjs');
 const { png, validateRects } = require('./texture.cjs');
+const { isRepaintDistance } = require('./repaint-controls.cjs');
+const { MAX_COMBINED_SIZE, combinedCanvas, selectionBounds } = require('./combined-canvas.cjs');
 
 const MATTE = 224;
 const EDGE_RADIUS = 3;
@@ -58,12 +60,6 @@ function interpolate(coords, a, b, c) {
   return [a * coords[0] + b * coords[2] + c * coords[4], a * coords[1] + b * coords[3] + c * coords[5]];
 }
 
-function alignedCenter(min, max, size) {
-  const midpoint = (min + max) / 2;
-  const aligned = Math.round(midpoint);
-  return Math.max(max - aligned, aligned - min) <= size / 2 + .001 ? aligned : midpoint;
-}
-
 function offsetAt(image, x, y) {
   return (y * image.width + x) * 4;
 }
@@ -101,19 +97,19 @@ function writeSample(atlas, offset, rgba, premultiplied, writeAlpha) {
   copyRgb(atlas.data, offset, rgba, premultiplied);
 }
 
-function candidatePixels(atlas, rects, footprints, mask) {
+function candidatePixels(atlas, parts, footprints, mask) {
   const owner = new Uint16Array(atlas.width * atlas.height);
   const atlasPoint = (u, v) => [u * atlas.width, v * atlas.height];
   for (const draw of footprints) {
-    const part = rects.findIndex(rect => rect.name === draw.region);
-    if (part < 0) continue;
+    const part = parts.get(draw.region);
+    if (!part) continue;
     for (const triangle of triangles(draw, 'uvs', atlasPoint)) {
-      rasterize(triangle, rects[part], (x, y) => {
+      rasterize(triangle, part.rect, (x, y) => {
         const index = y * atlas.width + x;
         const p = index * 4;
         if (atlas.data[p + 3] > 0 && (!mask || (mask.data[p] > 0 && mask.data[p + 3] > 0))) {
-          if (owner[index] !== 0 && owner[index] !== part + 1) throw Error('选中的部件共享图集像素，请分开重绘。');
-          owner[index] = part + 1;
+          if (owner[index] !== 0 && owner[index] !== part.index + 1) throw Error('选中的部件共享图集像素，请分开处理。');
+          owner[index] = part.index + 1;
         }
       });
     }
@@ -143,32 +139,129 @@ function indexVisibleRows(screenOwner, projected, size, partCount) {
   for (let i = 0; i < screenOwner.length; i++) {
     const owner = screenOwner[i];
     if (!owner) continue;
-    const part = parts[projected[owner - 1].part];
+    const part = parts[projected[owner - 1].part.index];
     const row = Math.floor(i / size);
-    (part.rows[row] ??= []).push(i % size);
-    part.first = Math.min(part.first, row);
-    part.last = row;
+    const column = i % size;
+    const spans = part.rows[row] ??= [];
+    // Keep runs instead of one entry per visible pixel on large canvases.
+    const end = spans.length - 1;
+    if (spans[end] === column - 1) spans[end] = column;
+    else {
+      spans.push(column, column);
+      part.first = Math.min(part.first, row);
+      part.last = row;
+    }
   }
   return parts;
 }
 
 function nearPart({ first, last, rows }, x, y, radius) {
   for (let row = Math.max(first, y - radius); row <= Math.min(last, y + radius); row++) {
-    const columns = rows[row];
-    if (!columns) continue;
+    const spans = rows[row];
+    if (!spans) continue;
     const dy = row - y;
     const reach = Math.floor(Math.sqrt(radius * radius - dy * dy));
     const min = x - reach, max = x + reach;
-    if (max < columns[0] || min > columns[columns.length - 1]) continue;
-    let low = 0, high = columns.length;
+    if (max < spans[0] || min > spans[spans.length - 1]) continue;
+    let low = 0, high = spans.length / 2;
     while (low < high) {
       const mid = (low + high) >>> 1;
-      if (columns[mid] < min) low = mid + 1;
+      if (spans[mid * 2 + 1] < min) low = mid + 1;
       else high = mid;
     }
-    if (columns[low] <= max) return true;
+    if (spans[low * 2] <= max) return true;
   }
   return false;
+}
+
+function projectSelection(pages, draws, partCount, seamExpand, paintWork) {
+  const bounds = selectionBounds(draws);
+  const { minX, minY, maxX, maxY } = bounds;
+  const extent = Math.max(maxX - minX, maxY - minY);
+  if (!Number.isFinite(extent) || extent <= 0) throw Error('当前帧没有可见的选中部件，请选择另一帧。');
+  const layout = paintWork ? null : combinedCanvas(bounds);
+  const large = layout?.size > MAX_WORK;
+  const size = large ? layout.size : extent <= 960 ? 1024 : MAX_WORK;
+  const centerX = large ? layout.centerX : (minX + maxX) / 2;
+  const centerY = large ? layout.centerY : (minY + maxY) / 2;
+  const scale = large ? 1 : Math.min(1, (size - 64) / extent);
+  const workPoint = (x, y) => [size / 2 + (x - centerX) * scale, size / 2 - (y - centerY) * scale];
+  const work = paintWork ? canvas(size, size) : null;
+  const workBounds = { x: 0, y: 0, width: size, height: size };
+  const screenOwner = new Int32Array(size * size);
+  const drawHits = new Uint8Array(Math.ceil(screenOwner.length / 8));
+  const projected = [];
+  const byPage = new Map([...pages.keys()].map(name => [name, []]));
+  const onlyPage = pages.size === 1 ? pages.keys().next().value : undefined;
+
+  for (const [drawIndex, draw] of draws.entries()) {
+    const pageName = draw.page ?? onlyPage;
+    const page = pages.get(pageName);
+    const part = page?.parts.get(draw.region);
+    if (!part) continue;
+    const { rect, index } = part;
+    const { atlas, candidates, premultiplied } = page;
+    const atlasPoint = (u, v) => [u * atlas.width, v * atlas.height];
+    const source = triangles(draw, 'uvs', atlasPoint);
+    const target = triangles(draw, 'vertices', workPoint);
+    drawHits.fill(0);
+    for (let i = 0; i < source.length; i++) {
+      const uv = source[i], xy = target[i], id = projected.length + 1;
+      const triangle = { part, uv, xy, id, drawIndex };
+      projected.push(triangle);
+      byPage.get(pageName).push(triangle);
+      rasterize(xy, workBounds, (x, y, a, b, c) => {
+        const [u, v] = interpolate(uv, a, b, c);
+        const tx = Math.floor(u), ty = Math.floor(v);
+        if (tx < rect.x || ty < rect.y || tx >= rect.x + rect.width || ty >= rect.y + rect.height) return;
+        const src = ty * atlas.width + tx;
+        if (candidates[src] !== index + 1) return;
+        const alpha = atlas.data[src * 4 + 3] / 255 * draw.opacity;
+        if (alpha <= 0) return;
+        const destination = y * size + x;
+        // A shared triangle edge has two raster hits. Composite a slot once at each pixel.
+        const byte = destination >>> 3, bit = 1 << (destination & 7);
+        if (drawHits[byte] & bit) return;
+        drawHits[byte] |= bit;
+        if (work) {
+          const offset = destination * 4;
+          for (let channel = 0; channel < 3; channel++) {
+            const rgb = atlas.data[src * 4 + channel];
+            const sourceColor = premultiplied ? rgb * draw.opacity : rgb * alpha;
+            work.data[offset + channel] = Math.round(sourceColor + work.data[offset + channel] * (1 - alpha));
+          }
+        }
+        if (alpha >= .025) screenOwner[destination] = id;
+      });
+    }
+  }
+
+  let visibleRows;
+  function samples(pageName) {
+    const { atlas, candidates } = pages.get(pageName);
+    const sources = new Int32Array(candidates.length).fill(-1);
+    const seamSources = seamExpand ? new Int32Array(candidates.length).fill(-1) : null;
+    for (const triangle of byPage.get(pageName)) {
+      const { part, uv, xy, id } = triangle;
+      rasterize(uv, part.rect, (x, y, a, b, c) => {
+        const index = y * atlas.width + x;
+        if (candidates[index] !== part.index + 1) return;
+        const [px, py] = interpolate(xy, a, b, c);
+        const sx = Math.floor(px), sy = Math.floor(py);
+        if (sx < 0 || sy < 0 || sx >= size || sy >= size) return;
+        const source = sy * size + sx;
+        const owner = screenOwner[source];
+        // The atlas and render grids can land on opposite sides of a shared mesh edge.
+        if (owner === id || (owner && crossesSharedVertex(triangle, projected[owner - 1], px, py))) sources[index] = source;
+        else if (seamSources && owner && projected[owner - 1].part !== part) {
+          visibleRows ??= indexVisibleRows(screenOwner, projected, size, partCount);
+          if (nearPart(visibleRows[part.index], sx, sy, seamExpand)) seamSources[index] = source;
+        }
+      });
+    }
+    return { sources, seamSources };
+  }
+  return { size, work, screenOwner, samples, projection: { centerX, centerY, scale }, layout };
 }
 
 function prepare({ atlasBytes, rects, snapshot, maskBytes, seamExpand = 0 }) {
@@ -176,90 +269,19 @@ function prepare({ atlasBytes, rects, snapshot, maskBytes, seamExpand = 0 }) {
   validateRects(rects, atlas);
   const mask = maskBytes ? png(maskBytes) : null;
   if (mask && (mask.width !== atlas.width || mask.height !== atlas.height)) throw Error('部件遮罩尺寸须与图集一致。');
-  if (!rects.length || rects.length > 1024 || !Array.isArray(snapshot.draws) || !Array.isArray(snapshot.footprints)) {
+  if (rects.length > 1024 || !Array.isArray(snapshot.draws) || !Array.isArray(snapshot.footprints)) {
     throw Error('无效的局部重绘选区。');
   }
-  const candidates = candidatePixels(atlas, rects, snapshot.footprints, mask);
+  const pageName = rects[0].page;
+  const premultiplied = snapshot.premultipliedPages?.includes(pageName) ?? Boolean(snapshot.premultiplied);
+  const parts = new Map(rects.map((rect, index) => [rect.name, { rect, index }]));
+  const candidates = candidatePixels(atlas, parts, snapshot.footprints, mask);
   const total = candidates.reduce((count, owner) => count + Number(Boolean(owner)), 0);
   if (!total) throw Error('选中的网格内没有可写的贴图像素。');
 
-  let x0 = Infinity, y0 = Infinity, x1 = -Infinity, y1 = -Infinity;
-  for (const draw of snapshot.draws) {
-    for (const vertex of draw.triangles) {
-      const x = draw.vertices[vertex * 2], y = draw.vertices[vertex * 2 + 1];
-      x0 = Math.min(x0, x); x1 = Math.max(x1, x);
-      y0 = Math.min(y0, y); y1 = Math.max(y1, y);
-    }
-  }
-  const extent = Math.max(x1 - x0, y1 - y0);
-  if (!Number.isFinite(extent) || extent <= 0) throw Error('当前帧没有可见的选中部件，请选择另一帧。');
-  const size = extent <= 960 ? 1024 : MAX_WORK;
-  const exportSize = extent <= 1024 + .001 ? 1024 : MAX_WORK;
-  const centerX = (x0 + x1) / 2, centerY = (y0 + y1) / 2;
-  const exportCenterX = alignedCenter(x0, x1, exportSize), exportCenterY = alignedCenter(y0, y1, exportSize);
-  const scale = Math.min(1, (size - 64) / extent);
-  const workPoint = (x, y) => [size / 2 + (x - centerX) * scale, size / 2 - (y - centerY) * scale];
-  const atlasPoint = (u, v) => [u * atlas.width, v * atlas.height];
-  const work = canvas(size, size);
-  const workBounds = { x: 0, y: 0, width: size, height: size };
-  const screenOwner = new Int32Array(size * size);
-  const projected = [];
-
-  for (const [drawIndex, draw] of snapshot.draws.entries()) {
-    const part = rects.findIndex(rect => rect.name === draw.region);
-    if (part < 0) continue;
-    const source = triangles(draw, 'uvs', atlasPoint);
-    const target = triangles(draw, 'vertices', workPoint);
-    const used = new Set();
-    for (let i = 0; i < source.length; i++) {
-      const uv = source[i], xy = target[i], id = projected.length + 1;
-      projected.push({ part, uv, xy, id, drawIndex });
-      rasterize(xy, workBounds, (x, y, a, b, c) => {
-        const [u, v] = interpolate(uv, a, b, c);
-        const tx = Math.floor(u), ty = Math.floor(v);
-        const rect = rects[part];
-        if (tx < rect.x || ty < rect.y || tx >= rect.x + rect.width || ty >= rect.y + rect.height) return;
-        const src = ty * atlas.width + tx;
-        if (candidates[src] !== part + 1) return;
-        const alpha = atlas.data[src * 4 + 3] / 255 * draw.opacity;
-        if (alpha <= 0) return;
-        const destination = y * size + x;
-        // A shared triangle edge has two raster hits. Composite a slot once at each pixel.
-        if (!used.has(destination)) {
-          const offset = destination * 4;
-          for (let channel = 0; channel < 3; channel++) {
-            const rgb = atlas.data[src * 4 + channel];
-            const sourceColor = snapshot.premultiplied ? rgb * draw.opacity : rgb * alpha;
-            work.data[offset + channel] = Math.round(sourceColor + work.data[offset + channel] * (1 - alpha));
-          }
-          used.add(destination);
-          if (alpha >= .025) screenOwner[destination] = id;
-        }
-      });
-    }
-  }
-
-  const sources = new Int32Array(candidates.length).fill(-1);
-  const seamSources = seamExpand ? new Int32Array(candidates.length).fill(-1) : null;
-  let visibleRows;
-  for (const triangle of projected) {
-    const { part, uv, xy, id } = triangle;
-    rasterize(uv, rects[part], (x, y, a, b, c) => {
-      const index = y * atlas.width + x;
-      if (candidates[index] !== part + 1) return;
-      const [px, py] = interpolate(xy, a, b, c);
-      const sx = Math.floor(px), sy = Math.floor(py);
-      const source = sy * size + sx;
-      if (sx < 0 || sy < 0 || sx >= size || sy >= size) return;
-      const owner = screenOwner[source];
-      // The atlas and render grids can land on opposite sides of a shared mesh edge.
-      if (owner === id || (owner && crossesSharedVertex(triangle, projected[owner - 1], px, py))) sources[index] = source;
-      else if (seamSources && owner && projected[owner - 1].part !== part) {
-        visibleRows ??= indexVisibleRows(screenOwner, projected, size, rects.length);
-        if (nearPart(visibleRows[part], sx, sy, seamExpand)) seamSources[index] = source;
-      }
-    });
-  }
+  const pages = new Map([[pageName, { atlas, parts, candidates, premultiplied }]]);
+  const { size, work, screenOwner, samples } = projectSelection(pages, snapshot.draws, rects.length, seamExpand, true);
+  const { sources, seamSources } = samples(pageName);
   if (!sources.some(source => source >= 0)) throw Error('当前姿势没有可靠的组装图取样点。');
   const tint = [62, 211, 178];
   for (let i = 0; i < candidates.length; i++) {
@@ -279,27 +301,57 @@ function prepare({ atlasBytes, rects, snapshot, maskBytes, seamExpand = 0 }) {
   return {
     image: PNG.sync.write(work), mask: PNG.sync.write(selectionAlpha),
     selectedAtlas: PNG.sync.write(atlas), size, total, candidates, sources, seamSources,
-    premultiplied: Boolean(snapshot.premultiplied),
-    projection: { centerX, centerY, scale, exportSize, exportCenterX, exportCenterY }
+    premultiplied
   };
 }
 
-function replaceAssembled({ atlasBytes, rects, snapshot, imageBytes }) {
-  const prepared = prepare({ atlasBytes, rects, snapshot });
-  const atlas = png(atlasBytes), replacement = png(imageBytes);
-  const { exportSize, exportCenterX, exportCenterY, centerX, centerY, scale } = prepared.projection;
+function replaceAssembled({ atlases, rects, snapshot, imageBytes, seamExpand = 0 }) {
+  if (!isRepaintDistance(seamExpand)) throw Error('交界宽度须为非负整数（px）。');
+  const replacement = png(imageBytes, MAX_COMBINED_SIZE ** 2);
+  const premultipliedPages = new Set(snapshot.premultipliedPages);
+  const pages = new Map(atlases.map(({ name, bytes }) => [name, {
+    atlas: png(bytes), parts: new Map(), footprints: [], premultiplied: premultipliedPages.has(name)
+  }]));
+  for (const [index, rect] of rects.entries()) pages.get(rect.page).parts.set(rect.name, { rect, index });
+  for (const footprint of snapshot.footprints) pages.get(footprint.page)?.footprints.push(footprint);
+  let hasCandidates = false;
+  for (const page of pages.values()) {
+    const { atlas, parts, footprints } = page;
+    validateRects([...parts.values()].map(part => part.rect), atlas);
+    page.candidates = candidatePixels(atlas, parts, footprints);
+    hasCandidates ||= page.candidates.some(Boolean);
+  }
+  if (!hasCandidates) throw Error('选中的网格内没有可写的贴图像素。');
+
+  const { size, projection, layout, samples } = projectSelection(pages, snapshot.draws, rects.length, seamExpand, false);
+  const exportSize = layout.size;
   if (replacement.width < exportSize / 2 || replacement.height < exportSize / 2 ||
       Math.abs(replacement.width / replacement.height - 1) > .005) {
     throw Error('组合 PNG 的画布比例或尺寸不符，请保持导出图的裁切、位置和留白。');
   }
+  const updates = [];
+  let hasSamples = false;
+  for (const [name, { atlas, premultiplied }] of pages) {
+    const { sources, seamSources } = samples(name);
+    hasSamples ||= sources.some(source => source >= 0);
+    if (writeAssembledPage(atlas, replacement, size, projection, layout, sources, seamSources, premultiplied)) {
+      updates.push({ name, bytes: PNG.sync.write(atlas) });
+    }
+  }
+  if (!hasSamples) throw Error('当前姿势没有可靠的组装图取样点。');
+  return updates;
+}
 
+function writeAssembledPage(atlas, replacement, size, projection, layout, sources, seamSources, premultiplied) {
+  const { centerX, centerY, scale } = projection;
+  const { size: exportSize, centerX: exportCenterX, centerY: exportCenterY } = layout;
   let changed = false;
-  for (let index = 0; index < prepared.sources.length; index++) {
-    const source = prepared.sources[index];
+  for (let index = 0; index < sources.length; index++) {
+    const source = sources[index] >= 0 ? sources[index] : seamSources?.[index] ?? -1;
     if (source < 0) continue;
-    const workX = source % prepared.size, workY = Math.floor(source / prepared.size);
-    const worldX = centerX + (workX + .5 - prepared.size / 2) / scale;
-    const worldY = centerY - (workY + .5 - prepared.size / 2) / scale;
+    const workX = source % size, workY = Math.floor(source / size);
+    const worldX = centerX + (workX + .5 - size / 2) / scale;
+    const worldY = centerY - (workY + .5 - size / 2) / scale;
     const outputX = exportSize / 2 + worldX - exportCenterX;
     const outputY = exportSize / 2 - (worldY - exportCenterY);
     const inputX = (outputX * replacement.width / exportSize) - .5;
@@ -310,10 +362,10 @@ function replaceAssembled({ atlasBytes, rects, snapshot, imageBytes }) {
     if (rgba[3] < 128) continue;
     const offset = index * 4;
     const before = Array.from(atlas.data.subarray(offset, offset + 4));
-    writeSample(atlas, offset, rgba, prepared.premultiplied, false);
+    writeSample(atlas, offset, rgba, premultiplied, false);
     if (before.some((value, channel) => value !== atlas.data[offset + channel])) changed = true;
   }
-  return changed ? PNG.sync.write(atlas) : Buffer.from(atlasBytes);
+  return changed;
 }
 
 function normalizedOutput(bytes, width, height, writebackMode) {

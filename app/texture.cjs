@@ -2,11 +2,16 @@
 const { PNG } = require('pngjs');
 const { meshCoverage } = require('./uv-coverage.cjs');
 const LIMIT = 8192;
-function png(buffer) {
+const TEXTURE_PIXEL_LIMIT = 32 * 1024 * 1024;
+function png(buffer, maxPixels = TEXTURE_PIXEL_LIMIT) {
   buffer = Buffer.from(buffer);
   if (buffer.length < 24 || buffer.toString('hex', 0, 8) !== '89504e470d0a1a0a') throw Error('请选择有效的 PNG 图片。');
   const width = buffer.readUInt32BE(16), height = buffer.readUInt32BE(20);
-  if (!width || !height || width > LIMIT || height > LIMIT || width * height > 32 * 1024 * 1024) throw Error('纹理尺寸超出支持范围（单边 8192、总像素 3200 万）。');
+  if (!width || !height || width > LIMIT || height > LIMIT || width * height > maxPixels) {
+    throw Error(maxPixels === TEXTURE_PIXEL_LIMIT
+      ? '纹理尺寸超出支持范围（单边 8192、总像素 3200 万）。'
+      : '组合 PNG 的尺寸超出支持范围（最大 8192 × 8192）。');
+  }
   return PNG.sync.read(buffer);
 }
 function unpickle(input, expected) {
