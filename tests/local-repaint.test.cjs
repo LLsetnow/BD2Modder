@@ -16,7 +16,7 @@ const uv = require('../app/workflows/local-repaint-uv.qwen21.json');
 const model = 'redqw21UNLOCKEDV2TI2I_redqw21UNLOCKEDV2_int8.safetensors';
 const firstRoundModel = 'qwnImageEdit_v16Bf16.safetensors';
 
-test('built-in RunningHub jobs send full graphs and load the independent reference', async () => {
+test('built-in RunningHub jobs submit both repaint graphs with their configured inputs', async () => {
   const uploads = [];
   const key = 'test-key';
   let submitted;
@@ -62,12 +62,6 @@ test('built-in RunningHub jobs send full graphs and load the independent referen
   assert.equal(submitted.prompt[8].inputs.denoise, .8);
   assert.equal(submitted.prompt[4].inputs.unet_name, model);
   assert.equal(uv[4].inputs.unet_name, model);
-  assert.equal(assembled[4].inputs.unet_name, firstRoundModel);
-  assert.equal(assembled[7].class_type, 'TextEncodeQwenImageEditPlus');
-  assert.deepEqual(assembled[7].inputs.image1, ['16', 1]);
-  assert.equal(assembled[16].inputs.mask_blend_pixels, 0);
-  assert.deepEqual(assembled[18].inputs.mask, ['16', 2]);
-  assert.deepEqual(assembled[20].inputs.inpainted_image, ['9', 0]);
   for (const [graph, target] of [[uv, ['15', 0]], [submitted.prompt, ['15', 0]]]) {
     assert.deepEqual(graph[7].inputs['images.image_1'], target);
     assert.deepEqual(graph[7].inputs.resolution, ['19', 1]);
@@ -81,6 +75,30 @@ test('built-in RunningHub jobs send full graphs and load the independent referen
     });
   }
   assert.equal(result.image.toString(), 'output');
+
+  uploads.length = 0;
+  const first = await generation.generateBuiltIn({ cloudAddress: 'https://www.runninghub.ai/' }, assembled, {
+    image: Buffer.from('assembled'), request: 'Teal fabric', steps: 12, seed: 456, denoise: .7
+  }, key, new AbortController().signal, () => {});
+  const graph = submitted.prompt;
+  assert.deepEqual(uploads, ['assembled']);
+  assert.equal(graph[1].inputs.image, 'input/image.png');
+  assert.equal(graph[4].inputs.unet_name, firstRoundModel);
+  assert.equal(graph[7].class_type, 'TextEncodeQwenImageEditPlus');
+  assert.equal(graph[7].inputs.prompt, 'Teal fabric\n\n');
+  assert.deepEqual(graph[7].inputs.image1, ['16', 1]);
+  assert.deepEqual(graph[8].inputs.latent_image, ['17', 0]);
+  assert.equal(graph[8].inputs.steps, 12);
+  assert.equal(graph[8].inputs.seed, 456);
+  assert.equal(graph[8].inputs.denoise, .7);
+  assert.equal(graph[16].inputs.mask_expand_pixels, 128);
+  assert.equal(graph[16].inputs.mask_blend_pixels, 32);
+  assert.equal(graph[16].inputs.output_target_width, 1024);
+  assert.equal(graph[16].inputs.output_target_height, 1024);
+  assert.equal(Object.values(graph).some(node => node.class_type === 'SetLatentNoiseMask'), false);
+  assert.deepEqual(graph[20].inputs.inpainted_image, ['9', 0]);
+  assert.deepEqual(graph[10].inputs.images, ['20', 0]);
+  assert.equal(first.image.toString(), 'output');
 });
 
 test('two rounds project visible pixels and fill hidden pixels while preserving source alpha', async t => {

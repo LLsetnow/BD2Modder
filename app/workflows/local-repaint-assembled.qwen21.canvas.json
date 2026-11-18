@@ -1,8 +1,8 @@
 {
   "id": "ad18abd3-bdee-4f80-8fae-d15d4f845b9d",
   "revision": 0,
-  "last_node_id": 220,
-  "last_link_id": 466,
+  "last_node_id": 221,
+  "last_link_id": 469,
   "nodes": [
     {
       "id": 70,
@@ -466,7 +466,7 @@
         ""
       ],
       "widgets_values_named": {
-        "prompt": "去掉衣服"
+        "prompt": ""
       },
       "color": "#232",
       "bgcolor": "#353"
@@ -524,7 +524,7 @@
         "BDModder/part-edit/assembled-qwen-edit"
       ],
       "widgets_values_named": {
-        "filename_prefix": "ComfyUI"
+        "filename_prefix": "BDModder/part-edit/assembled-qwen-edit"
       }
     },
     {
@@ -772,7 +772,7 @@
         "image"
       ],
       "widgets_values_named": {
-        "image": "719d2e164f55dede7c37ed8ed17a4db641d3c4098458a4e34e3d68904d45c2de.png",
+        "image": "round-1-input.png",
         "upload": "image"
       }
     },
@@ -858,7 +858,7 @@
           "label": "latent_image",
           "name": "latent_image",
           "type": "LATENT",
-          "link": 443
+          "link": 469
         },
         {
           "label": "seed",
@@ -932,7 +932,7 @@
         "widget_ue_connectable": {}
       },
       "widgets_values": [
-        596875079450834,
+        362584969558941,
         "randomize",
         4,
         1,
@@ -941,7 +941,7 @@
         1
       ],
       "widgets_values_named": {
-        "seed": 596875079450834,
+        "seed": 362584969558941,
         "control_after_generate": "randomize",
         "steps": 4,
         "cfg": 1,
@@ -954,7 +954,7 @@
       "id": 202,
       "type": "InpaintCropImproved",
       "pos": [
-        -962.5419520849678,
+        -929.7830485196346,
         250.47461627027843
       ],
       "size": [
@@ -962,7 +962,7 @@
         650
       ],
       "flags": {},
-      "order": 9,
+      "order": 10,
       "mode": 0,
       "inputs": [
         {
@@ -1172,7 +1172,7 @@
           "widget": {
             "name": "output_target_width"
           },
-          "link": null
+          "link": 467
         },
         {
           "label": "output_target_height",
@@ -1181,7 +1181,7 @@
           "widget": {
             "name": "output_target_height"
           },
-          "link": null
+          "link": 468
         },
         {
           "label": "output_padding",
@@ -1225,9 +1225,7 @@
           "label": "cropped_mask",
           "name": "cropped_mask",
           "type": "MASK",
-          "links": [
-            441
-          ]
+          "links": []
         }
       ],
       "properties": {
@@ -1270,9 +1268,9 @@
         16384,
         16384,
         true,
-        0,
+        128,
         false,
-        0,
+        32,
         0.1,
         false,
         1,
@@ -1296,7 +1294,7 @@
         "preresize_max_width": 16384,
         "preresize_max_height": 16384,
         "mask_fill_holes": true,
-        "mask_expand_pixels": 0,
+        "mask_expand_pixels": 128,
         "mask_invert": false,
         "mask_blend_pixels": 32,
         "mask_hipass_filter": 0.1,
@@ -1317,15 +1315,15 @@
       "id": 74,
       "type": "VAEEncode",
       "pos": [
-        -428.85211181640625,
-        210.14862060546875
+        -349.6313815996335,
+        269.8613982044116
       ],
       "size": [
         187.5,
         46
       ],
       "flags": {},
-      "order": 10,
+      "order": 11,
       "mode": 0,
       "inputs": [
         {
@@ -1347,7 +1345,7 @@
           "name": "LATENT",
           "type": "LATENT",
           "links": [
-            440
+            469
           ]
         }
       ],
@@ -1355,51 +1353,6 @@
         "Node name for S&R": "VAEEncode",
         "cnr_id": "comfy-core",
         "ver": "0.5.1",
-        "widget_ue_connectable": {}
-      }
-    },
-    {
-      "id": 206,
-      "type": "SetLatentNoiseMask",
-      "pos": [
-        -322.49847412109375,
-        378.32220458984375
-      ],
-      "size": [
-        188.68181457519532,
-        46
-      ],
-      "flags": {},
-      "order": 13,
-      "mode": 0,
-      "inputs": [
-        {
-          "label": "samples",
-          "name": "samples",
-          "type": "LATENT",
-          "link": 440
-        },
-        {
-          "label": "mask",
-          "name": "mask",
-          "type": "MASK",
-          "link": 441
-        }
-      ],
-      "outputs": [
-        {
-          "label": "LATENT",
-          "name": "LATENT",
-          "type": "LATENT",
-          "links": [
-            443
-          ]
-        }
-      ],
-      "properties": {
-        "Node name for S&R": "SetLatentNoiseMask",
-        "cnr_id": "comfy-core",
-        "ver": "0.9.2",
         "widget_ue_connectable": {}
       }
     },
@@ -1438,6 +1391,54 @@
       "properties": {
         "widget_ue_connectable": {},
         "Node name for S&R": "InvertMask"
+      }
+    },
+    {
+      "id": 221,
+      "type": "Int",
+      "pos": [
+        -1524.9423381967315,
+        736.4897822503502
+      ],
+      "size": [
+        270,
+        58
+      ],
+      "flags": {},
+      "order": 6,
+      "mode": 0,
+      "inputs": [
+        {
+          "label": "value",
+          "name": "value",
+          "type": "INT",
+          "widget": {
+            "name": "value"
+          },
+          "link": null
+        }
+      ],
+      "outputs": [
+        {
+          "label": "INT",
+          "name": "INT",
+          "type": "INT",
+          "links": [
+            467,
+            468
+          ]
+        }
+      ],
+      "title": "size",
+      "properties": {
+        "widget_ue_connectable": {},
+        "Node name for S&R": "Int"
+      },
+      "widgets_values": [
+        1024
+      ],
+      "widgets_values_named": {
+        "value": 1024
       }
     }
   ],
@@ -1579,30 +1580,6 @@
       "IMAGE"
     ],
     [
-      440,
-      74,
-      0,
-      206,
-      0,
-      "LATENT"
-    ],
-    [
-      441,
-      202,
-      2,
-      206,
-      1,
-      "MASK"
-    ],
-    [
-      443,
-      206,
-      0,
-      65,
-      3,
-      "LATENT"
-    ],
-    [
       444,
       202,
       1,
@@ -1649,6 +1626,30 @@
       220,
       0,
       "MASK"
+    ],
+    [
+      467,
+      221,
+      0,
+      202,
+      23,
+      "INT"
+    ],
+    [
+      468,
+      221,
+      0,
+      202,
+      24,
+      "INT"
+    ],
+    [
+      469,
+      74,
+      0,
+      65,
+      3,
+      "LATENT"
     ]
   ],
   "groups": [],

@@ -71,7 +71,7 @@ macOS 使用 Command（⌘）对应下列 Ctrl 快捷键。按住 Command 点击
 
 本地 ComfyUI 需要包含第一轮的 `TextEncodeQwenImageEditPlus`、`InpaintCropImproved`、`InpaintStitchImproved` 等节点，以及第二轮的 `TextEncodeQwenImage21`、`GetImageSize` 和 `ComfyMathExpression`。模型准备好后，第一轮选择 `round-1-input.png`；第二轮分别选择 `round-2-input.png`、`round-2-model-mask.png` 和上一轮生成的 `round-1-output.png`（独立参考图）。PNG 可从 BD Modder 对应任务的 `jobs` 目录获取。 [Qwen Image 2.1 官方模板与依赖](https://docs.comfy.org/tutorials/image/qwen/qwen-image-2-1)
 
-第一轮需要将 `qwnImageEdit_v16Bf16.safetensors` 放入 `models/diffusion_models`，将 `qwen_2.5_vl_7b_fp8_scaled.safetensors` 放入 `models/text_encoders`，将 `qwen_image_vae.safetensors` 放入 `models/vae`。第二轮需要将 `redqw21UNLOCKEDV2TI2I_redqw21UNLOCKEDV2_int8.safetensors` 放入 `models/diffusion_models`，将 `qwen3vl_8b_int8_convrot.safetensors` 放入 `models/text_encoders`，将 `qwen_image_2.1_vae_bf16.safetensors` 放入 `models/vae`。两轮的提示词都由 BD Modder 修改要求提供。第一轮 `mask_blend_pixels` 固定为 0。
+第一轮需要将 `qwnImageEdit_v16Bf16.safetensors` 放入 `models/diffusion_models`，将 `qwen_2.5_vl_7b_fp8_scaled.safetensors` 放入 `models/text_encoders`，将 `qwen_image_vae.safetensors` 放入 `models/vae`。第二轮需要将 `redqw21UNLOCKEDV2TI2I_redqw21UNLOCKEDV2_int8.safetensors` 放入 `models/diffusion_models`，将 `qwen3vl_8b_int8_convrot.safetensors` 放入 `models/text_encoders`，将 `qwen_image_2.1_vae_bf16.safetensors` 放入 `models/vae`。两轮的提示词都由 BD Modder 修改要求提供。第一轮按 PS Qwen2511 工作流将遮罩扩展 128 px、拼接羽化 32 px，裁切目标默认为 1024 × 1024。采样器直接使用裁切图的 VAE 编码结果。
 
 ## 开发和构建
 

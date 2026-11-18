@@ -60,10 +60,10 @@
         0
       ],
       "latent_image": [
-        "18",
+        "17",
         0
       ],
-      "seed": 793,
+      "seed": 362584969558941,
       "steps": 4,
       "cfg": 1,
       "sampler_name": "euler",
@@ -174,9 +174,9 @@
       "preresize_max_width": 16384,
       "preresize_max_height": 16384,
       "mask_fill_holes": true,
-      "mask_expand_pixels": 0,
+      "mask_expand_pixels": 128,
       "mask_invert": false,
-      "mask_blend_pixels": 0,
+      "mask_blend_pixels": 32,
       "mask_hipass_filter": 0.1,
       "extend_for_outpainting": false,
       "extend_up_factor": 1,
@@ -201,19 +201,6 @@
       "vae": [
         "6",
         0
-      ]
-    }
-  },
-  "18": {
-    "class_type": "SetLatentNoiseMask",
-    "inputs": {
-      "samples": [
-        "17",
-        0
-      ],
-      "mask": [
-        "16",
-        2
       ]
     }
   },
