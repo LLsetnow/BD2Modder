@@ -133,6 +133,10 @@ footer{margin-top:21px;color:#52685d;border-top:1px solid var(--line);padding-to
 .generation-details th,.generation-details td{border-bottom:1px solid var(--line);padding:5px 10px;text-align:right}
 .generation-details th:first-child{text-align:left}
 .generation-details .table-wrap{margin-top:8px}
+.generation-details .table-wrap:focus-visible{outline:2px solid var(--teal);outline-offset:2px}
+.method-steps{margin:8px 0 2px;padding-inline-start:22px;color:var(--muted)}
+.method-steps li+li{margin-top:5px}
+#implementation>.section-note{margin-top:8px}
 .review-title{margin:19px 0 9px}
 .review-controls{display:flex;gap:7px 16px;flex-wrap:wrap}
 #atlas-download{margin-left:8px;color:#a0f0d5;font-weight:640}
@@ -159,7 +163,7 @@ footer{margin-top:21px;color:#52685d;border-top:1px solid var(--line);padding-to
 <body>
 <header><div class="topbar wrap">
   <div class="brand"><span class="brand-mark" aria-hidden="true">M</span> ModStudio · Spine</div>
-  <nav aria-label="页内导航"><a href="#workbench">重绘流程</a><a href="char003793-Spine动画多帧覆盖分析.html">多帧覆盖分析</a><a href="#implementation">接入顺序</a></nav>
+  <nav aria-label="页内导航"><a href="#workbench">重绘流程</a><a href="char003793-Spine动画多帧覆盖分析.html">多帧覆盖分析</a><a href="#implementation">复现与接入</a></nav>
 </div></header>
 <section class="hero" aria-labelledby="title"><div class="hero-grid wrap">
   <div class="hero-copy">
@@ -199,6 +203,14 @@ footer{margin-top:21px;color:#52685d;border-top:1px solid var(--line);padding-to
           <figure class="figure"><figcaption>有效取色区 <span class="detail">生成后计算</span></figcaption><div class="stage study-stage"><img data-asset="assembledMask" alt="依据原姿势和输出颜色检查得到的工作图有效取色区"></div></figure>
         </div>
         <p class="blend-note">第一轮提示词要求把淡紫色布料改成低饱和青绿色，沿用原构图、褶皱和荷叶边。输出按画布比例对齐，再以原网格和有效取色区限制采样。</p>
+        <details class="generation-details">
+          <summary>查看第一轮的输入坐标和生成要求</summary>
+          <ul class="method-steps">
+            <li>读取骨骼和图集，在 <code>idle 0.00 s</code> 取得当前附件、绘制顺序、变形后的顶点和图集 UV。把选中的七块裙片渲染到 <code>1024 × 1024</code> 工作画布，铺一层浅灰底。</li>
+            <li>保存角色坐标到工作图的变换，以及每个三角形在工作图和图集的两套顶点。生成后仍用这套坐标找取色点。</li>
+            <li>这轮只把组装图交给 GPT Image。紫色改成青绿色，保留版型、开口、褶皱和留白。右侧有效取色区在生成后由本地计算，用于排除背景和不合格样本。</li>
+          </ul>
+        </details>
         <details id="gpt-image-prompt-1" class="generation-details">
           <summary>查看第一轮 GPT Image 完整提示词（中文）</summary>
           <p>用途为精确编辑指定对象。编辑对象是提供的正方形游戏精灵工作图。画面上，两片前开式裙摆由七个已对齐的部件组装而成，背景为均匀的浅灰色。
@@ -226,6 +238,16 @@ footer{margin-top:21px;color:#52685d;border-top:1px solid var(--line);padding-to
         <p class="uv-trace-status" id="uv-trace-status" aria-live="polite"></p>
         <button id="sample-review" class="choice" type="button" hidden>查看第二轮原尺寸 UV 补绘</button>
         <p class="blend-note">从图集像素中心出发，用 UV 三角形求出工作图坐标，再按比例取样 GPT Image 的输出。工作图只渲染组装后的裙摆，回写时用原始附件遮罩与 Alpha。青色光标表示对应像素已在第一轮写回。琥珀色光标标出其他取点，有几何映射时仍会显示另一侧的位置。右图的矩形里也可能看见相邻的打包碎片。</p>
+        <details class="generation-details">
+          <summary>查看一个真实像素如何从组装图写回图集</summary>
+          <ol class="method-steps">
+            <li>选 <code>skirt_r</code>。图集区域原点为 <code>(1847, 427)</code>，裙片内 <code>(65, 137)</code> 是图集像素 <code>(1912, 564)</code>。计算使用像素中心 <code>(1912.5, 564.5)</code>。</li>
+            <li>在图集 UV 三角形中求出重心权重约 <code>(0.445114, 0.484482, 0.070404)</code>。用同样的权重插值工作图顶点，得到约 <code>(731.67, 520.01)</code>。实际记录的工作图像素为 <code>(731, 520)</code>。</li>
+            <li>原输出为 <code>1254 × 1254</code>。对每个轴按 <code>(工作图像素 + 0.5) × 输出尺寸 / 工作图尺寸 − 0.5</code> 换算，得到约 <code>(895.30, 636.91)</code>。四邻域双线性采样后写入 RGB <code>(165, 196, 182)</code>，该点仍使用图集原始 Alpha <code>76</code>。</li>
+          </ol>
+          <p>七块裙片共检查 42,905 个候选图集像素。几何上有对应点时，还要检查该点在这个姿势中的可见附件及生成颜色。<code>skirt_l3</code> 的 870 个候选点都进入了第二轮。</p>
+          <p>这套换算适用于布局对齐但像素尺寸不同的输出。模型把裙片移位或改变轮廓时，先检查接缝和轮廓能否校准。换成裤装等新结构时，应先确定分件，再重建附件和 UV。<a href="Spine服装换款待办.md">服装换款待办</a></p>
+        </details>
       </section>
       <section class="panel" id="panel-review" role="tabpanel" aria-labelledby="tab-review" tabindex="0" hidden>
         <div class="panel-head"><div><h3>第二轮直接补绘原尺寸 UV 裙片</h3><p>把第一轮回写后的七块裙片按原 UV 尺寸放进 768 × 512 工作图，每块只平移。第一轮生成的组装裙摆是独立的风格参考，缺口遮罩也是单独的输入。</p></div><span class="flow-mark">原 UV 像素 1∶1</span></div>
@@ -248,7 +270,30 @@ footer{margin-top:21px;color:#52685d;border-top:1px solid var(--line);padding-to
             <p lang="en">Use case: precise-object-edit. Return only an edited version of IMAGE 1, the 3:2 landscape native-UV sprite sheet. IMAGE 2 is a separate style/color reference showing the finished assembled green skirt; do not copy its assembled silhouette into the sheet. IMAGE 3 is a black-and-white guide in the exact coordinates of IMAGE 1; white marks fabric gaps to repaint. Change only the remaining lavender and violet in the seven UV pieces of image 1 to the muted cool teal and celadon of image 2, continuing the adjacent folds, shadows, ruffles, and highlights. The top row contains 3 very small pieces; the bottom row contains 4 longer pieces. The small pointed piece at top right is entirely a repair area. Preserve the exact 3:2 framing, grey background, ample gutters, seven piece silhouettes and all their sizes, positions, orientations, and existing green fabric detail. Every piece should remain aligned to the center and exact boundaries where it appears in image 1. Do not enlarge the small pieces, move or combine pieces, add a garment, or place the reference or mask inside the output. Keep clean empty space around each piece. Return the edited native-layout sheet only, without text.</p>
           </details>
         </details>
-        <details class="generation-details"><summary>查看七块裙片的原尺寸和补写明细</summary><div class="table-wrap"><table aria-label="原尺寸 UV 补写明细"><thead><tr><th scope="col">裙片</th><th scope="col">原 UV 尺寸</th><th scope="col">第一轮后缺口</th><th scope="col">第二轮写回</th><th scope="col">剩余</th></tr></thead><tbody><tr><th scope="row"><code>skirt_back2</code></th><td>66 × 39</td><td>987</td><td>987</td><td>0</td></tr><tr><th scope="row"><code>skirt_back1</code></th><td>52 × 39</td><td>467</td><td>467</td><td>0</td></tr><tr><th scope="row"><code>skirt_l3</code></th><td>37 × 56</td><td>870</td><td>870</td><td>0</td></tr><tr><th scope="row"><code>skirt_l1</code></th><td>75 × 220</td><td>197</td><td>195</td><td>2</td></tr><tr><th scope="row"><code>skirt_l2</code></th><td>112 × 243</td><td>2,080</td><td>2,080</td><td>0</td></tr><tr><th scope="row"><code>skirt_l4</code></th><td>155 × 246</td><td>3,781</td><td>3,758</td><td>23</td></tr><tr><th scope="row"><code>skirt_r</code></th><td>128 × 240</td><td>528</td><td>528</td><td>0</td></tr></tbody></table></div></details>
+        <details class="generation-details">
+          <summary>查看七块裙片的排版坐标和两轮写回明细</summary>
+          <p>坐标均从左上角开始。图集像素减去对应的图集原点，得到裙片内坐标。用工作图原点加上相同的裙片内坐标即可取色。</p>
+          <div class="table-wrap" role="region" aria-label="七块裙片坐标和回写统计" tabindex="0">
+            <table aria-label="原尺寸 UV 补写明细">
+              <thead><tr><th scope="col">裙片</th><th scope="col">图集原点</th><th scope="col">工作图原点</th><th scope="col">原 UV 尺寸</th><th scope="col">第一轮写回</th><th scope="col">第二轮待补</th><th scope="col">第二轮写回</th><th scope="col">剩余</th></tr></thead>
+              <tbody>
+              <tr><th scope="row"><code>skirt_back2</code></th><td><code>(477, 44)</code></td><td><code>(95, 93)</code></td><td>66 × 39</td><td>746</td><td>987</td><td>987</td><td>0</td></tr>
+              <tr><th scope="row"><code>skirt_back1</code></th><td><code>(1360, 45)</code></td><td><code>(358, 93)</code></td><td>52 × 39</td><td>770</td><td>467</td><td>467</td><td>0</td></tr>
+              <tr><th scope="row"><code>skirt_l3</code></th><td><code>(945, 346)</code></td><td><code>(621, 85)</code></td><td>37 × 56</td><td>0</td><td>870</td><td>870</td><td>0</td></tr>
+              <tr><th scope="row"><code>skirt_l1</code></th><td><code>(263, 98)</code></td><td><code>(55, 209)</code></td><td>75 × 220</td><td>4,537</td><td>197</td><td>195</td><td>2</td></tr>
+              <tr><th scope="row"><code>skirt_l2</code></th><td><code>(385, 295)</code></td><td><code>(231, 197)</code></td><td>112 × 243</td><td>7,068</td><td>2,080</td><td>2,080</td><td>0</td></tr>
+              <tr><th scope="row"><code>skirt_l4</code></th><td><code>(1690, 421)</code></td><td><code>(402, 196)</code></td><td>155 × 246</td><td>8,322</td><td>3,781</td><td>3,758</td><td>23</td></tr>
+              <tr><th scope="row"><code>skirt_r</code></th><td><code>(1847, 427)</code></td><td><code>(611, 199)</code></td><td>128 × 240</td><td>12,552</td><td>528</td><td>528</td><td>0</td></tr>
+              </tbody>
+              <tfoot><tr><th scope="row" colspan="4">合计</th><td>33,995</td><td>8,910</td><td>8,885</td><td>25</td></tr></tfoot>
+            </table>
+          </div>
+          <ol class="method-steps">
+            <li>从 42,905 个候选像素里减去第一轮已写入的 33,995 个，将其余 8,910 个像素依排版坐标写成白色缺口图。该图既提供给模型，也在本地限定允许写回的目的像素。</li>
+            <li>以 <code>skirt_l3</code> 为例。裙片内 <code>(33, 1)</code> 位于工作图 <code>(654, 86)</code>，对应图集 <code>(978, 347)</code>。第二轮原输出恰好是工作图的两倍。取横坐标 <code>1308、1309</code> 与纵坐标 <code>172、173</code> 组合成的四个像素，逐 RGB 通道求均值并取整，得到 <code>(169, 197, 181)</code>。目标的 Alpha 仍为 <code>18</code>。</li>
+            <li>边缘若没有合格颜色，就在同一裙片找有效邻近样本。本次 568 个邻近样本距离其目的点最多 3 像素。剩余 25 个保留第一轮后的值，分别是 <code>skirt_l1</code> 的 2 个和 <code>skirt_l4</code> 的 23 个。</li>
+          </ol>
+        </details>
         <h3 class="review-title">在原动画姿势中检查贴图</h3>
         <div class="review-controls">
           <div class="poses" aria-label="复查姿势">
@@ -303,7 +348,8 @@ footer{margin-top:21px;color:#52685d;border-top:1px solid var(--line);padding-to
   </section>
 
   <section id="implementation" aria-labelledby="implementation-title">
-    <h2 id="implementation-title">怎么接到 ModStudio</h2>
+    <h2 id="implementation-title">离线复现与 ModStudio 接入</h2>
+    <p class="section-note">仓库内的复现技能使用原图集和页面内嵌的两轮真实输出重新计算 RGB，并与成品逐像素比较。运行后可取得两轮输入、输出、提示词、回写图集及 25 个剩余点的图集坐标。<a href="../skills/spine-texture-repaint/SKILL.md">查看复现技能</a></p>
     <div class="rollout">
       <article><h3>先验证坐标闭环</h3><p>先跑通「组装图 → 图集 → 角色图」，检查网格拉伸、旋转图块、裁剪和透明边缘。</p></article>
       <article><h3>再接入角色上下文</h3><p>复用现有工作流配置和应用确认。重绘任务发送角色局部图和可见遮罩，确认界面用重新渲染的角色预览展示效果。</p></article>

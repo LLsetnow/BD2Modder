@@ -37,6 +37,7 @@
         { id: "undo", name: "\u64A4\u9500\u4FEE\u6539", group: "\u7F16\u8F91\u64CD\u4F5C", default: "Ctrl+Z", native: true },
         { id: "redo", name: "\u91CD\u505A\u4FEE\u6539", group: "\u7F16\u8F91\u64CD\u4F5C", default: "Ctrl+Shift+Z", native: true },
         { id: "hide", name: "\u9690\u85CF\u9009\u4E2D\u90E8\u4EF6", group: "\u7F16\u8F91\u64CD\u4F5C", default: "H" },
+        { id: "clearSelection", name: "\u6E05\u7A7A\u9009\u62E9", group: "\u7F16\u8F91\u64CD\u4F5C", default: "Ctrl+D" },
         { id: "play", name: "\u64AD\u653E / \u6682\u505C", group: "\u753B\u5E03\u64CD\u4F5C", default: "Space" },
         { id: "switchWorkspace", name: "\u6807\u51C6 / \u56FE\u96C6\u5BF9\u7167", group: "\u753B\u5E03\u64CD\u4F5C", default: "F" },
         { id: "fit", name: "\u9002\u5E94\u5F53\u524D\u753B\u5E03", group: "\u753B\u5E03\u64CD\u4F5C", default: "0" },
@@ -46,6 +47,7 @@
       var RESERVED = /* @__PURE__ */ new Set(["Ctrl+C", "Ctrl+V", "Ctrl+X", "Ctrl+A", "Ctrl+=", "Ctrl+Shift+=", "Ctrl+-", "Ctrl+0", "F11", "Alt+F4", "Alt+Tab", "Ctrl+Alt+Delete"]);
       var MAC_RESERVED = /* @__PURE__ */ new Set(["Ctrl+Q", "Ctrl+H", "Ctrl+Alt+H", "Ctrl+M", "Ctrl+W", "Ctrl+Space"]);
       function formatShortcut2(shortcut, isMac) {
+        if (shortcut === "") return "\u672A\u8BBE\u7F6E";
         return isMac ? shortcut.replace(/^Ctrl\+/, "\u2318+") : shortcut;
       }
       function normalizeShortcut(value, isMac = false) {
@@ -59,7 +61,12 @@
       function validateShortcuts3(input = {}, isMac = false) {
         if (!input || typeof input !== "object" || Array.isArray(input)) throw Error("\u5FEB\u6377\u952E\u914D\u7F6E\u65E0\u6548\u3002");
         const output = {}, occupied = /* @__PURE__ */ new Map();
+        const clearDefaultInUse = input.clearSelection == null && ACTIONS2.some((action) => input[action.id] === DEFAULT_SHORTCUTS3.clearSelection);
         for (const action of ACTIONS2) {
+          if (action.id === "clearSelection" && (input.clearSelection === "" || clearDefaultInUse)) {
+            output.clearSelection = "";
+            continue;
+          }
           const key = normalizeShortcut(input[action.id] ?? action.default, isMac);
           if (action.native && !key.includes("+") && !/^F\d+$/.test(key)) throw Error("\u9879\u76EE\u548C\u7F16\u8F91\u64CD\u4F5C\u8BF7\u4F7F\u7528\u7EC4\u5408\u952E\u6216 F1\u2013F12\uFF0C\u907F\u514D\u5F71\u54CD\u6587\u5B57\u8F93\u5165\u3002");
           if (occupied.has(key)) throw Error(`\u5FEB\u6377\u952E ${formatShortcut2(key, isMac)} \u5DF2\u7528\u4E8E\u201C${occupied.get(key)}\u201D\u3002`);
@@ -100,6 +107,7 @@
       this.category = "general";
       this.shortcuts = { ...import_keybindings.DEFAULT_SHORTCUTS };
       this.serviceDirty = false;
+      this.serviceBusy = false;
       this.element.innerHTML = `
       <div class="settings-shell">
         <div class="settings-heading"><div><span class="eyebrow">PREFERENCES</span><h1>\u8BBE\u7F6E</h1></div><button type="button" class="button subtle" id="settings-back">\u2190 \u8FD4\u56DE\u5DE5\u4F5C\u53F0</button></div>
@@ -124,8 +132,25 @@
             </section>
             <section id="settings-pane-ai" data-settings-pane="ai" role="tabpanel" aria-labelledby="settings-tab-ai" hidden>
               <div class="settings-card"><h3>\u7ED8\u56FE\u670D\u52A1</h3>
-                <label class="settings-row" for="settings-provider"><span><strong>\u9ED8\u8BA4\u670D\u52A1</strong><small>\u7528\u4E8E\u68C0\u67E5\u5668\u4E2D\u7684\u5C40\u90E8\u91CD\u7ED8\u3002</small></span><select class="field-select" id="settings-provider"><option value="ComfyUI">ComfyUI</option><option value="RunningHub">RunningHub</option></select></label>
-                <div class="settings-form"><label class="field-label" for="settings-comfy-address">ComfyUI \u5730\u5740</label><input class="settings-input" id="settings-comfy-address" type="url" spellcheck="false" autocomplete="off"><label class="field-label" for="settings-cloud-address">RunningHub \u5730\u5740</label><input class="settings-input" id="settings-cloud-address" type="url" spellcheck="false" autocomplete="off"><label class="field-label" for="settings-cloud-key">RunningHub API Key</label><input class="settings-input" id="settings-cloud-key" type="password" autocomplete="off"><label class="dialog-check"><input id="settings-clear-key" type="checkbox">\u6E05\u9664\u5DF2\u4FDD\u5B58\u7684 Key</label><p class="help-text" id="settings-key-note">\u5BC6\u94A5\u901A\u8FC7\u7CFB\u7EDF\u52A0\u5BC6\u4FDD\u5B58\uFF0C\u4E0D\u4F1A\u5199\u5165 MOD \u6216\u5BFC\u51FA\u5305\u3002</p><div class="settings-actions"><button type="button" class="button" id="settings-save-service">\u4FDD\u5B58\u8FDE\u63A5</button><button type="button" class="button primary" id="settings-test-service">\u4FDD\u5B58\u5E76\u6D4B\u8BD5\u8FDE\u63A5</button></div><p class="settings-feedback" id="settings-service-feedback" role="status"></p></div>
+                <label class="settings-row" for="settings-provider"><span><strong>\u9ED8\u8BA4\u670D\u52A1</strong><small>\u7528\u4E8E\u81EA\u5B9A\u4E49\u56FE\u96C6\u5DE5\u4F5C\u6D41\u3002</small></span><select class="field-select" id="settings-provider"><option value="ComfyUI">ComfyUI</option><option value="RunningHub">RunningHub</option></select></label>
+                <div class="settings-form" id="settings-connection-form">
+                  <label class="field-label" for="settings-comfy-address">ComfyUI \u5730\u5740</label><input class="settings-input" id="settings-comfy-address" type="url" spellcheck="false" autocomplete="off">
+                  <label class="field-label" for="settings-cloud-address">RunningHub \u5730\u5740</label><input class="settings-input" id="settings-cloud-address" type="url" spellcheck="false" autocomplete="off">
+                  <div class="settings-actions"><button type="button" class="button" id="settings-save-service">\u4FDD\u5B58\u8FDE\u63A5</button><button type="button" class="button primary" id="settings-test-service">\u4FDD\u5B58\u5E76\u6D4B\u8BD5\u8FDE\u63A5</button></div>
+                  <p class="settings-feedback" id="settings-service-feedback" role="status"></p>
+                </div>
+              </div>
+              <div class="settings-card" ${this.options.native ? "" : "hidden"}>
+                <h3>RunningHub API Key</h3>
+                <div class="settings-form">
+                  <label class="field-label" for="settings-active-cloud-key">\u542F\u7528\u5BC6\u94A5</label>
+                  <div class="settings-key-picker"><select class="settings-input" id="settings-active-cloud-key"></select><button type="button" class="button" id="settings-remove-cloud-key">\u5220\u9664\u5F53\u524D\u5BC6\u94A5</button></div>
+                  <label class="field-label" for="settings-cloud-key-name">\u5BC6\u94A5\u540D\u79F0</label><input class="settings-input" id="settings-cloud-key-name" type="text" placeholder="\u53EF\u9009\uFF0C\u4F8B\u5982\u4E2A\u4EBA\u5DE5\u4F5C\u533A" autocomplete="off">
+                  <label class="field-label" for="settings-cloud-key">\u65B0\u7684 API Key</label><input class="settings-input" id="settings-cloud-key" type="password" autocomplete="off" spellcheck="false">
+                  <div class="settings-actions"><button type="button" class="button primary" id="settings-add-cloud-key">\u6DFB\u52A0\u5E76\u542F\u7528</button></div>
+                  <p class="help-text" id="settings-key-note"></p>
+                  <p class="settings-feedback" id="settings-key-feedback" role="status"></p>
+                </div>
               </div>
               <div class="settings-card"><h3>\u91CD\u7ED8\u5DE5\u4F5C\u6D41</h3><div class="settings-row"><span><strong id="settings-workflow-name">\u5C1A\u672A\u914D\u7F6E\u5DE5\u4F5C\u6D41</strong><small>\u5BFC\u5165 API \u5DE5\u4F5C\u6D41\uFF0C\u8BBE\u7F6E\u56FE\u96C6\u3001\u906E\u7F69\u548C\u63D0\u793A\u8BCD\u6620\u5C04\u3002</small></span><button type="button" class="button" id="settings-workflow">\u5BFC\u5165 / \u914D\u7F6E</button></div></div>
             </section>
@@ -159,24 +184,32 @@
       this.element.querySelector("#reset-preferences").onclick = () => this.options.onResetPreferences();
       this.element.querySelectorAll("[data-shortcut]").forEach((button) => button.onclick = () => this.capture(button.dataset.shortcut));
       this.element.querySelector("#reset-shortcuts").onclick = () => this.run(async () => this.setShortcuts(await this.options.onShortcuts({ ...import_keybindings.DEFAULT_SHORTCUTS })), "#shortcut-feedback");
-      this.element.querySelectorAll(".settings-form input").forEach((input) => input.addEventListener("input", () => {
+      this.connectionFields = [...this.element.querySelectorAll("#settings-connection-form input")];
+      this.connectionFields.forEach((input) => input.addEventListener("input", () => {
         this.serviceDirty = true;
         this.feedback("#settings-service-feedback", "\u8FDE\u63A5\u6709\u672A\u4FDD\u5B58\u7684\u66F4\u6539\u3002");
       }));
       this.element.querySelector("#settings-save-service").onclick = () => this.saveService(false);
       this.element.querySelector("#settings-test-service").onclick = () => this.saveService(true);
+      this.element.querySelector("#settings-active-cloud-key").onchange = (event) => {
+        const id = event.target.value || null;
+        return this.saveKeyChange({ activeRunningHubKeyId: id }, id ? "\u5DF2\u5207\u6362\u542F\u7528\u5BC6\u94A5\u3002" : "\u5DF2\u505C\u7528 RunningHub \u5BC6\u94A5\u3002");
+      };
+      this.element.querySelector("#settings-cloud-key").oninput = () => this.updateServiceControls();
+      this.element.querySelector("#settings-add-cloud-key").onclick = () => this.saveKeyChange({ addRunningHubKey: {
+        name: this.element.querySelector("#settings-cloud-key-name").value,
+        apiKey: this.element.querySelector("#settings-cloud-key").value
+      } }, "\u5BC6\u94A5\u5DF2\u52A0\u5BC6\u4FDD\u5B58\u5E76\u542F\u7528\u3002");
+      this.element.querySelector("#settings-remove-cloud-key").onclick = () => {
+        const entry = this.service?.runningHubKeys?.find((item) => item.id === this.service.activeRunningHubKeyId);
+        if (entry && window.confirm(`\u5220\u9664\u5BC6\u94A5\u300C${entry.name}\u300D\uFF1F`)) return this.saveKeyChange({ removeRunningHubKeyId: entry.id }, "\u5DF2\u5220\u9664\u5BC6\u94A5\u3002");
+      };
       this.element.querySelector("#settings-workflow").onclick = () => this.options.onWorkflow();
       this.element.querySelectorAll("[data-project-setting]").forEach((button) => button.onclick = () => this.options.onProjectAction(button.dataset.projectSetting));
       document.addEventListener("keydown", (event) => this.keydown(event), true);
       this.setShortcuts(this.shortcuts);
-      if (!this.options.native) {
-        this.element.querySelector("#settings-cloud-key").disabled = true;
-        this.element.querySelector("#settings-cloud-key").placeholder = "\u8BF7\u5728\u684C\u9762\u7248\u4E2D\u8BBE\u7F6E\u5BC6\u94A5";
-        this.element.querySelector("#settings-clear-key").disabled = true;
-        this.element.querySelector("#settings-test-service").disabled = true;
-        this.element.querySelector("#settings-save-service").textContent = "\u4FDD\u5B58\u9884\u89C8\u8BBE\u7F6E";
-        this.element.querySelector("#settings-key-note").textContent = "\u5F53\u524D\u4E3A\u6D4F\u89C8\u5668\u8BBE\u8BA1\u9884\u89C8\u3002\u5B9E\u9645\u670D\u52A1\u548C\u5BC6\u94A5\u8BF7\u5728\u684C\u9762\u7248\u4E2D\u8BBE\u7F6E\u3002";
-      }
+      if (!this.options.native) this.element.querySelector("#settings-save-service").textContent = "\u4FDD\u5B58\u9884\u89C8\u8BBE\u7F6E";
+      this.renderKeyPicker();
     }
     get open() {
       return !this.element.hidden;
@@ -193,6 +226,8 @@
     async hide() {
       this.cancelCapture();
       await this.options.onVisibility?.(false);
+      this.element.querySelector("#settings-cloud-key").value = "";
+      this.updateServiceControls();
       this.element.hidden = true;
       delete document.documentElement.dataset.screen;
       document.querySelector("#settings-open")?.setAttribute("aria-expanded", "false");
@@ -223,11 +258,9 @@
         if (service.shortcuts) this.setShortcuts(service.shortcuts);
         if (!this.serviceDirty) {
           this.element.querySelector("#settings-comfy-address").value = service.address || "http://127.0.0.1:8188/";
-          this.element.querySelector("#settings-cloud-address").value = service.cloudAddress || "https://www.runninghub.cn/";
-          this.element.querySelector("#settings-cloud-key").value = "";
-          this.element.querySelector("#settings-clear-key").checked = false;
-          if (this.options.native) this.element.querySelector("#settings-cloud-key").placeholder = service.hasKey ? "\u5DF2\u52A0\u5BC6\u4FDD\u5B58\uFF0C\u7559\u7A7A\u4FDD\u7559" : "\u586B\u5199 API Key";
+          this.element.querySelector("#settings-cloud-address").value = service.cloudAddress || "https://www.runninghub.ai/";
         }
+        this.renderKeyPicker();
         this.element.querySelector("#settings-workflow-name").textContent = service.profile?.name || "\u5C1A\u672A\u914D\u7F6E\u5DE5\u4F5C\u6D41";
       }
       if (project !== void 0) {
@@ -303,21 +336,58 @@
         return null;
       }
     }
-    async saveService(test) {
-      const buttons = ["#settings-save-service", "#settings-test-service"].map((id) => this.element.querySelector(id));
-      buttons.forEach((button) => button.disabled = true);
+    updateServiceControls() {
+      const busy = this.serviceBusy, canEncrypt = this.options.native && this.service?.encryptionAvailable;
+      const keyInput = this.element.querySelector("#settings-cloud-key");
+      for (const input of this.connectionFields) input.disabled = busy;
+      this.element.querySelector("#settings-save-service").disabled = busy;
+      this.element.querySelector("#settings-test-service").disabled = busy || !this.options.native;
+      this.element.querySelector("#settings-active-cloud-key").disabled = busy || !this.service?.runningHubKeys?.length;
+      this.element.querySelector("#settings-remove-cloud-key").disabled = busy || !this.service?.activeRunningHubKeyId;
+      this.element.querySelector("#settings-cloud-key-name").disabled = keyInput.disabled = busy || !canEncrypt;
+      this.element.querySelector("#settings-add-cloud-key").disabled = keyInput.disabled || !keyInput.value.trim();
+    }
+    renderKeyPicker() {
+      const select = this.element.querySelector("#settings-active-cloud-key");
+      const keys = this.service?.runningHubKeys || [];
+      select.replaceChildren(new Option(keys.length ? "\u672A\u542F\u7528\u5BC6\u94A5" : "\u5C1A\u672A\u6DFB\u52A0\u5BC6\u94A5", ""), ...keys.map(({ id, name }) => new Option(name, id)));
+      select.value = this.service?.activeRunningHubKeyId || "";
+      const note = this.element.querySelector("#settings-key-note");
+      note.textContent = this.service && !this.service.encryptionAvailable ? "\u5F53\u524D\u65E0\u6CD5\u4F7F\u7528\u7CFB\u7EDF\u5BC6\u94A5\u52A0\u5BC6\u3002" : this.service?.activeRunningHubKeyId && !this.service.hasKey ? "\u65E0\u6CD5\u89E3\u5BC6\u5F53\u524D\u5BC6\u94A5\uFF0C\u8BF7\u9009\u62E9\u53E6\u4E00\u6761\u6216\u91CD\u65B0\u6DFB\u52A0\u3002" : "\u5BC6\u94A5\u4F7F\u7528\u7CFB\u7EDF\u52A0\u5BC6\u4FDD\u5B58\u3002\u65B0\u4EFB\u52A1\u4F7F\u7528\u5F53\u524D\u542F\u7528\u7684\u5BC6\u94A5\u3002";
+      this.updateServiceControls();
+    }
+    async runServiceAction(action, feedback) {
+      if (this.serviceBusy) return;
+      this.serviceBusy = true;
+      this.updateServiceControls();
       try {
-        const patch = { address: this.element.querySelector("#settings-comfy-address").value, cloudAddress: this.element.querySelector("#settings-cloud-address").value, apiKey: this.element.querySelector("#settings-cloud-key").value, clearKey: this.element.querySelector("#settings-clear-key").checked };
+        await this.run(action, feedback);
+      } finally {
+        this.serviceBusy = false;
+        this.renderKeyPicker();
+      }
+    }
+    saveKeyChange(patch, message) {
+      return this.runServiceAction(async () => {
+        const result = await this.options.onSaveService(patch);
+        if (patch.addRunningHubKey) {
+          this.element.querySelector("#settings-cloud-key").value = "";
+          this.element.querySelector("#settings-cloud-key-name").value = "";
+        }
+        this.sync({ service: result });
+        this.feedback("#settings-key-feedback", message);
+      }, "#settings-key-feedback");
+    }
+    saveService(test) {
+      return this.runServiceAction(async () => {
+        const patch = { address: this.element.querySelector("#settings-comfy-address").value, cloudAddress: this.element.querySelector("#settings-cloud-address").value };
+        const provider = this.element.querySelector("#settings-provider").value;
         const result = await this.options.onSaveService(patch);
         this.serviceDirty = false;
         this.sync({ service: result });
         this.feedback("#settings-service-feedback", test ? "\u6B63\u5728\u6D4B\u8BD5\u8FDE\u63A5\u2026" : "\u8FDE\u63A5\u914D\u7F6E\u5DF2\u4FDD\u5B58\u3002");
-        if (test) this.feedback("#settings-service-feedback", await this.options.onTestService(this.element.querySelector("#settings-provider").value));
-      } catch (error) {
-        this.feedback("#settings-service-feedback", error.message, true);
-      } finally {
-        buttons.forEach((button) => button.disabled = !this.options.native && button.id === "settings-test-service");
-      }
+        if (test) this.feedback("#settings-service-feedback", await this.options.onTestService(provider));
+      }, "#settings-service-feedback");
     }
   };
 
@@ -384,17 +454,23 @@
       this.element.hidden = true;
       if (focus && this.origin?.isConnected) this.origin.focus();
     }
-    show(event, origin, { count, canHide, canShow, shortcut, onHide, onShow }) {
+    show(event, origin, { count, canHide, canShow, canIsolate, selectionOnly, shortcut, onHide, onShow, onToggleSelectionOnly }) {
       event.preventDefault();
       this.origin = origin;
       this.element.replaceChildren();
-      for (const [label, key, disabled, run] of [["\u9690\u85CF\u9009\u4E2D\u90E8\u4EF6", shortcut, !canHide, onHide], ["\u663E\u793A\u9690\u85CF\u90E8\u4EF6", "", !canShow, onShow]]) {
+      const suffix = count > 1 ? `\uFF08${count}\uFF09` : "";
+      const actions = [
+        ["\u9690\u85CF\u9009\u4E2D\u90E8\u4EF6" + suffix, shortcut, !canHide, onHide],
+        ["\u663E\u793A\u9690\u85CF\u90E8\u4EF6" + suffix, "", !canShow, onShow],
+        [selectionOnly ? "\u6062\u590D\u5B8C\u6574\u9884\u89C8" : "\u53EA\u770B\u9009\u4E2D\u90E8\u4EF6" + suffix, "", !selectionOnly && !canIsolate, onToggleSelectionOnly]
+      ];
+      for (const [label, key, disabled, run] of actions) {
         const button = document.createElement("button");
         button.type = "button";
         button.setAttribute("role", "menuitem");
         button.disabled = disabled;
         const text = document.createElement("span");
-        text.textContent = label + (count > 1 ? `\uFF08${count}\uFF09` : "");
+        text.textContent = label;
         button.append(text);
         if (key) {
           const hint = document.createElement("kbd");

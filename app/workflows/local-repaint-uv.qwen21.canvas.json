@@ -1,0 +1,1127 @@
+{
+  "last_node_id": 20,
+  "last_link_id": 24,
+  "nodes": [
+    {
+      "id": 1,
+      "type": "LoadImage",
+      "title": "Image 1 · 原尺寸 UV 工作图",
+      "pos": [
+        40,
+        90
+      ],
+      "size": [
+        340,
+        218
+      ],
+      "flags": {},
+      "order": 0,
+      "mode": 0,
+      "inputs": [],
+      "outputs": [
+        {
+          "name": "IMAGE",
+          "localized_name": "IMAGE",
+          "type": "IMAGE",
+          "links": [
+            18
+          ]
+        },
+        {
+          "name": "MASK",
+          "localized_name": "MASK",
+          "type": "MASK",
+          "links": null
+        }
+      ],
+      "properties": {
+        "Node name for S&R": "LoadImage"
+      },
+      "widgets_values": [
+        "round-2-input.png",
+        "image"
+      ],
+      "widgets_values_named": {
+        "image": "round-2-input.png",
+        "upload": "image"
+      }
+    },
+    {
+      "id": 2,
+      "type": "LoadImageMask",
+      "title": "Image 3 · 扩展与羽化后的缺口遮罩",
+      "pos": [
+        40,
+        360
+      ],
+      "size": [
+        340,
+        218
+      ],
+      "flags": {},
+      "order": 1,
+      "mode": 0,
+      "inputs": [],
+      "outputs": [
+        {
+          "name": "MASK",
+          "localized_name": "MASK",
+          "type": "MASK",
+          "links": [
+            13
+          ]
+        }
+      ],
+      "properties": {
+        "Node name for S&R": "LoadImageMask"
+      },
+      "widgets_values": [
+        "round-2-model-mask.png",
+        "red",
+        "image"
+      ],
+      "widgets_values_named": {
+        "image": "round-2-model-mask.png",
+        "channel": "red",
+        "upload": "image"
+      }
+    },
+    {
+      "id": 3,
+      "type": "LoadImage",
+      "title": "Image 2 · 独立组装图参考",
+      "pos": [
+        40,
+        620
+      ],
+      "size": [
+        340,
+        218
+      ],
+      "flags": {},
+      "order": 2,
+      "mode": 0,
+      "inputs": [],
+      "outputs": [
+        {
+          "name": "IMAGE",
+          "localized_name": "IMAGE",
+          "type": "IMAGE",
+          "links": [
+            4
+          ]
+        },
+        {
+          "name": "MASK",
+          "localized_name": "MASK",
+          "type": "MASK",
+          "links": null
+        }
+      ],
+      "properties": {
+        "Node name for S&R": "LoadImage"
+      },
+      "widgets_values": [
+        "round-2-reference.png",
+        "image"
+      ],
+      "widgets_values_named": {
+        "image": "round-2-reference.png",
+        "upload": "image"
+      }
+    },
+    {
+      "id": 4,
+      "type": "UNETLoader",
+      "title": "Qwen 2.1 · RedQW UNLOCKED V2 INT8",
+      "pos": [
+        415,
+        655
+      ],
+      "size": [
+        365,
+        101
+      ],
+      "flags": {},
+      "order": 3,
+      "mode": 0,
+      "inputs": [],
+      "outputs": [
+        {
+          "name": "MODEL",
+          "localized_name": "MODEL",
+          "type": "MODEL",
+          "links": [
+            6
+          ]
+        }
+      ],
+      "properties": {
+        "Node name for S&R": "UNETLoader"
+      },
+      "widgets_values": [
+        "redqw21UNLOCKEDV2TI2I_redqw21UNLOCKEDV2_int8.safetensors",
+        "default"
+      ],
+      "widgets_values_named": {
+        "unet_name": "redqw21UNLOCKEDV2TI2I_redqw21UNLOCKEDV2_int8.safetensors",
+        "weight_dtype": "default"
+      }
+    },
+    {
+      "id": 5,
+      "type": "CLIPLoader",
+      "title": "Qwen 2.1 · 视觉文本编码",
+      "pos": [
+        415,
+        810
+      ],
+      "size": [
+        365,
+        128
+      ],
+      "flags": {},
+      "order": 4,
+      "mode": 0,
+      "inputs": [],
+      "outputs": [
+        {
+          "name": "CLIP",
+          "localized_name": "CLIP",
+          "type": "CLIP",
+          "links": [
+            1
+          ]
+        }
+      ],
+      "properties": {
+        "Node name for S&R": "CLIPLoader"
+      },
+      "widgets_values": [
+        "qwen3vl_8b_int8_convrot.safetensors",
+        "qwen_image",
+        "default"
+      ],
+      "widgets_values_named": {
+        "clip_name": "qwen3vl_8b_int8_convrot.safetensors",
+        "type": "qwen_image",
+        "device": "default"
+      }
+    },
+    {
+      "id": 6,
+      "type": "VAELoader",
+      "title": "Qwen 2.1 · VAE",
+      "pos": [
+        415,
+        1000
+      ],
+      "size": [
+        365,
+        88
+      ],
+      "flags": {},
+      "order": 5,
+      "mode": 0,
+      "inputs": [],
+      "outputs": [
+        {
+          "name": "VAE",
+          "localized_name": "VAE",
+          "type": "VAE",
+          "links": [
+            3,
+            11,
+            15
+          ]
+        }
+      ],
+      "properties": {
+        "Node name for S&R": "VAELoader"
+      },
+      "widgets_values": [
+        "qwen_image_2.1_vae_bf16.safetensors"
+      ],
+      "widgets_values_named": {
+        "vae_name": "qwen_image_2.1_vae_bf16.safetensors"
+      }
+    },
+    {
+      "id": 7,
+      "type": "TextEncodeQwenImage21",
+      "title": "第二轮 · 参照组装图补绘",
+      "pos": [
+        820,
+        75
+      ],
+      "size": [
+        460,
+        510
+      ],
+      "flags": {},
+      "order": 11,
+      "mode": 0,
+      "inputs": [
+        {
+          "name": "clip",
+          "localized_name": "clip",
+          "type": "CLIP",
+          "link": 1
+        },
+        {
+          "name": "images.image_1",
+          "localized_name": "image_1",
+          "type": "IMAGE",
+          "link": 2,
+          "shape": 7
+        },
+        {
+          "name": "vae",
+          "localized_name": "vae",
+          "type": "VAE",
+          "link": 3,
+          "shape": 7
+        },
+        {
+          "name": "images.image_2",
+          "localized_name": "image_2",
+          "type": "IMAGE",
+          "link": 4,
+          "shape": 7
+        },
+        {
+          "name": "images.image_3",
+          "localized_name": "image_3",
+          "type": "IMAGE",
+          "link": 5,
+          "shape": 7
+        },
+        {
+          "name": "resolution",
+          "localized_name": "resolution",
+          "type": "INT",
+          "link": 24,
+          "widget": {
+            "name": "resolution"
+          }
+        }
+      ],
+      "outputs": [
+        {
+          "name": "positive",
+          "localized_name": "positive",
+          "type": "CONDITIONING",
+          "links": [
+            7
+          ]
+        },
+        {
+          "name": "negative",
+          "localized_name": "negative",
+          "type": "CONDITIONING",
+          "links": [
+            8
+          ]
+        },
+        {
+          "name": "latent",
+          "localized_name": "latent",
+          "type": "LATENT",
+          "links": null
+        }
+      ],
+      "properties": {
+        "Node name for S&R": "TextEncodeQwenImage21"
+      },
+      "widgets_values": [
+        "Edit image 1 in place. Image 2 is the independent assembled fabric reference, for texture and palette only. Image 3 maps the target on image 1: white is the main area, gray is the feathered transition, black is protected. Give every existing marked fabric pixel the hue, contrast and soft fabric shading from image 2, including the smallest detached patches. Match the existing silhouette and leave no breaks or background inside any fabric area. Preserve all fragment positions, outlines, seams, sizes and margin. Return image 1 as a single UV sheet.",
+        "changed garment silhouette, moved texture regions, extra clothing, seam displacement, text, watermark",
+        0
+      ],
+      "widgets_values_named": {
+        "prompt": "Edit image 1 in place. Image 2 is the independent assembled fabric reference, for texture and palette only. Image 3 maps the target on image 1: white is the main area, gray is the feathered transition, black is protected. Give every existing marked fabric pixel the hue, contrast and soft fabric shading from image 2, including the smallest detached patches. Match the existing silhouette and leave no breaks or background inside any fabric area. Preserve all fragment positions, outlines, seams, sizes and margin. Return image 1 as a single UV sheet.",
+        "negative_prompt": "changed garment silhouette, moved texture regions, extra clothing, seam displacement, text, watermark",
+        "resolution": 0
+      }
+    },
+    {
+      "id": 8,
+      "type": "KSampler",
+      "title": "Qwen 2.1 · 采样",
+      "pos": [
+        1320,
+        100
+      ],
+      "size": [
+        280,
+        315
+      ],
+      "flags": {},
+      "order": 15,
+      "mode": 0,
+      "inputs": [
+        {
+          "name": "model",
+          "localized_name": "model",
+          "type": "MODEL",
+          "link": 6
+        },
+        {
+          "name": "positive",
+          "localized_name": "positive",
+          "type": "CONDITIONING",
+          "link": 7
+        },
+        {
+          "name": "negative",
+          "localized_name": "negative",
+          "type": "CONDITIONING",
+          "link": 8
+        },
+        {
+          "name": "latent_image",
+          "localized_name": "latent_image",
+          "type": "LATENT",
+          "link": 9
+        }
+      ],
+      "outputs": [
+        {
+          "name": "LATENT",
+          "localized_name": "LATENT",
+          "type": "LATENT",
+          "links": [
+            10
+          ]
+        }
+      ],
+      "properties": {
+        "Node name for S&R": "KSampler"
+      },
+      "widgets_values": [
+        793,
+        "fixed",
+        25,
+        4,
+        "euler",
+        "normal",
+        0.88
+      ],
+      "widgets_values_named": {
+        "seed": 793,
+        "steps": 25,
+        "cfg": 4,
+        "sampler_name": "euler",
+        "scheduler": "normal",
+        "denoise": 0.88,
+        "control_after_generate": "fixed"
+      }
+    },
+    {
+      "id": 9,
+      "type": "VAEDecode",
+      "title": "解码工作图",
+      "pos": [
+        1660,
+        115
+      ],
+      "size": [
+        220,
+        75
+      ],
+      "flags": {},
+      "order": 16,
+      "mode": 0,
+      "inputs": [
+        {
+          "name": "samples",
+          "localized_name": "samples",
+          "type": "LATENT",
+          "link": 10
+        },
+        {
+          "name": "vae",
+          "localized_name": "vae",
+          "type": "VAE",
+          "link": 11
+        }
+      ],
+      "outputs": [
+        {
+          "name": "IMAGE",
+          "localized_name": "IMAGE",
+          "type": "IMAGE",
+          "links": [
+            12
+          ]
+        }
+      ],
+      "properties": {
+        "Node name for S&R": "VAEDecode"
+      }
+    },
+    {
+      "id": 10,
+      "type": "SaveImage",
+      "title": "输出 · 2× UV 补绘图",
+      "pos": [
+        1980,
+        115
+      ],
+      "size": [
+        325,
+        280
+      ],
+      "flags": {},
+      "order": 17,
+      "mode": 0,
+      "inputs": [
+        {
+          "name": "images",
+          "localized_name": "images",
+          "type": "IMAGE",
+          "link": 12
+        }
+      ],
+      "outputs": [
+        {
+          "name": "image_urls",
+          "localized_name": "image_urls",
+          "type": "STRING",
+          "links": null
+        },
+        {
+          "name": "images",
+          "localized_name": "images",
+          "type": "IMAGE",
+          "links": null
+        }
+      ],
+      "properties": {
+        "Node name for S&R": "SaveImage"
+      },
+      "widgets_values": [
+        "BDModder/part-edit/uv"
+      ],
+      "widgets_values_named": {
+        "filename_prefix": "BDModder/part-edit/uv"
+      }
+    },
+    {
+      "id": 11,
+      "type": "MaskToImage",
+      "title": "缺口图 · 准确位置引导",
+      "pos": [
+        415,
+        355
+      ],
+      "size": [
+        230,
+        65
+      ],
+      "flags": {},
+      "order": 7,
+      "mode": 0,
+      "inputs": [
+        {
+          "name": "mask",
+          "localized_name": "mask",
+          "type": "MASK",
+          "link": 13
+        }
+      ],
+      "outputs": [
+        {
+          "name": "IMAGE",
+          "localized_name": "IMAGE",
+          "type": "IMAGE",
+          "links": [
+            19
+          ]
+        }
+      ],
+      "properties": {
+        "Node name for S&R": "MaskToImage"
+      }
+    },
+    {
+      "id": 12,
+      "type": "VAEEncode",
+      "title": "编码 2× UV 工作图",
+      "pos": [
+        820,
+        700
+      ],
+      "size": [
+        230,
+        70
+      ],
+      "flags": {},
+      "order": 12,
+      "mode": 0,
+      "inputs": [
+        {
+          "name": "pixels",
+          "localized_name": "pixels",
+          "type": "IMAGE",
+          "link": 14
+        },
+        {
+          "name": "vae",
+          "localized_name": "vae",
+          "type": "VAE",
+          "link": 15
+        }
+      ],
+      "outputs": [
+        {
+          "name": "LATENT",
+          "localized_name": "LATENT",
+          "type": "LATENT",
+          "links": [
+            16
+          ]
+        }
+      ],
+      "properties": {
+        "Node name for S&R": "VAEEncode"
+      }
+    },
+    {
+      "id": 14,
+      "type": "SetLatentNoiseMask",
+      "title": "只对缺口邻域采样",
+      "pos": [
+        1100,
+        695
+      ],
+      "size": [
+        210,
+        80
+      ],
+      "flags": {},
+      "order": 14,
+      "mode": 0,
+      "inputs": [
+        {
+          "name": "samples",
+          "localized_name": "samples",
+          "type": "LATENT",
+          "link": 16
+        },
+        {
+          "name": "mask",
+          "localized_name": "mask",
+          "type": "MASK",
+          "link": 17
+        }
+      ],
+      "outputs": [
+        {
+          "name": "LATENT",
+          "localized_name": "LATENT",
+          "type": "LATENT",
+          "links": [
+            9
+          ]
+        }
+      ],
+      "properties": {
+        "Node name for S&R": "SetLatentNoiseMask"
+      }
+    },
+    {
+      "id": 15,
+      "type": "ImageScaleBy",
+      "title": "编辑目标放大 2×",
+      "pos": [
+        415,
+        90
+      ],
+      "size": [
+        270,
+        105
+      ],
+      "flags": {},
+      "order": 6,
+      "mode": 0,
+      "inputs": [
+        {
+          "name": "image",
+          "localized_name": "image",
+          "type": "IMAGE",
+          "link": 18
+        }
+      ],
+      "outputs": [
+        {
+          "name": "IMAGE",
+          "localized_name": "IMAGE",
+          "type": "IMAGE",
+          "links": [
+            2,
+            14,
+            21
+          ]
+        }
+      ],
+      "properties": {
+        "Node name for S&R": "ImageScaleBy"
+      },
+      "widgets_values": [
+        "lanczos",
+        2
+      ],
+      "widgets_values_named": {
+        "upscale_method": "lanczos",
+        "scale_by": 2
+      }
+    },
+    {
+      "id": 16,
+      "type": "ImageScaleBy",
+      "title": "缺口遮罩同步放大",
+      "pos": [
+        415,
+        485
+      ],
+      "size": [
+        270,
+        105
+      ],
+      "flags": {},
+      "order": 8,
+      "mode": 0,
+      "inputs": [
+        {
+          "name": "image",
+          "localized_name": "image",
+          "type": "IMAGE",
+          "link": 19
+        }
+      ],
+      "outputs": [
+        {
+          "name": "IMAGE",
+          "localized_name": "IMAGE",
+          "type": "IMAGE",
+          "links": [
+            5,
+            20
+          ]
+        }
+      ],
+      "properties": {
+        "Node name for S&R": "ImageScaleBy"
+      },
+      "widgets_values": [
+        "nearest-exact",
+        2
+      ],
+      "widgets_values_named": {
+        "upscale_method": "nearest-exact",
+        "scale_by": 2
+      }
+    },
+    {
+      "id": 17,
+      "type": "ImageToMask",
+      "title": "恢复采样遮罩",
+      "pos": [
+        820,
+        860
+      ],
+      "size": [
+        240,
+        82
+      ],
+      "flags": {},
+      "order": 13,
+      "mode": 0,
+      "inputs": [
+        {
+          "name": "image",
+          "localized_name": "image",
+          "type": "IMAGE",
+          "link": 20
+        }
+      ],
+      "outputs": [
+        {
+          "name": "MASK",
+          "localized_name": "MASK",
+          "type": "MASK",
+          "links": [
+            17
+          ]
+        }
+      ],
+      "properties": {
+        "Node name for S&R": "ImageToMask"
+      },
+      "widgets_values": [
+        "red"
+      ],
+      "widgets_values_named": {
+        "channel": "red"
+      }
+    },
+    {
+      "id": 18,
+      "type": "GetImageSize",
+      "title": "读取放大后宽高 · Image 1",
+      "pos": [
+        1320,
+        490
+      ],
+      "size": [
+        210,
+        115
+      ],
+      "flags": {},
+      "order": 9,
+      "mode": 0,
+      "inputs": [
+        {
+          "name": "image",
+          "localized_name": "image",
+          "type": "IMAGE",
+          "link": 21
+        }
+      ],
+      "outputs": [
+        {
+          "name": "width",
+          "localized_name": "width",
+          "type": "INT",
+          "links": [
+            22
+          ]
+        },
+        {
+          "name": "height",
+          "localized_name": "height",
+          "type": "INT",
+          "links": [
+            23
+          ]
+        },
+        {
+          "name": "batch_size",
+          "localized_name": "batch_size",
+          "type": "INT",
+          "links": null
+        }
+      ],
+      "properties": {
+        "Node name for S&R": "GetImageSize"
+      }
+    },
+    {
+      "id": 19,
+      "type": "ComfyMathExpression",
+      "title": "计算 resolution · round(sqrt(宽 × 高))",
+      "pos": [
+        1580,
+        490
+      ],
+      "size": [
+        275,
+        180
+      ],
+      "flags": {},
+      "order": 10,
+      "mode": 0,
+      "inputs": [
+        {
+          "name": "values.a",
+          "localized_name": "a",
+          "type": "FLOAT,INT,BOOLEAN",
+          "link": 22,
+          "shape": 7
+        },
+        {
+          "name": "values.b",
+          "localized_name": "b",
+          "type": "FLOAT,INT,BOOLEAN",
+          "link": 23,
+          "shape": 7
+        }
+      ],
+      "outputs": [
+        {
+          "name": "FLOAT",
+          "localized_name": "FLOAT",
+          "type": "FLOAT",
+          "links": null
+        },
+        {
+          "name": "INT",
+          "localized_name": "INT",
+          "type": "INT",
+          "links": [
+            24
+          ]
+        },
+        {
+          "name": "BOOL",
+          "localized_name": "BOOL",
+          "type": "BOOLEAN",
+          "links": null
+        }
+      ],
+      "properties": {
+        "Node name for S&R": "ComfyMathExpression"
+      },
+      "widgets_values": [
+        "round(sqrt(a * b))"
+      ],
+      "widgets_values_named": {
+        "expression": "round(sqrt(a * b))"
+      }
+    },
+    {
+      "id": 20,
+      "type": "MarkdownNote",
+      "pos": [
+        1900,
+        450
+      ],
+      "size": [
+        405,
+        314
+      ],
+      "flags": {},
+      "order": 18,
+      "mode": 0,
+      "inputs": [],
+      "outputs": [],
+      "properties": {},
+      "widgets_values": [
+        "### UV 缺口补绘\n\n- **Image 1** `round-2-input.png`，原尺寸 UV 工作图。放大 2× 后读取宽高并计算 resolution。\n- **Image 2** `round-1-output.png`，独立的组装图参考。\n- **Image 3** `round-2-model-mask.png`，由 BD Modder 从实际缺口生成的扩展、羽化遮罩。与 Image 1 同步放大。\n- **输出** BD Modder 将 2× 成图对回原尺寸，只在缺口写回。ARGB 模式可接收成图的 Alpha。"
+      ],
+      "color": "#263947",
+      "bgcolor": "#202a35"
+    }
+  ],
+  "links": [
+    [
+      1,
+      5,
+      0,
+      7,
+      0,
+      "CLIP"
+    ],
+    [
+      2,
+      15,
+      0,
+      7,
+      1,
+      "IMAGE"
+    ],
+    [
+      3,
+      6,
+      0,
+      7,
+      2,
+      "VAE"
+    ],
+    [
+      4,
+      3,
+      0,
+      7,
+      3,
+      "IMAGE"
+    ],
+    [
+      5,
+      16,
+      0,
+      7,
+      4,
+      "IMAGE"
+    ],
+    [
+      6,
+      4,
+      0,
+      8,
+      0,
+      "MODEL"
+    ],
+    [
+      7,
+      7,
+      0,
+      8,
+      1,
+      "CONDITIONING"
+    ],
+    [
+      8,
+      7,
+      1,
+      8,
+      2,
+      "CONDITIONING"
+    ],
+    [
+      9,
+      14,
+      0,
+      8,
+      3,
+      "LATENT"
+    ],
+    [
+      10,
+      8,
+      0,
+      9,
+      0,
+      "LATENT"
+    ],
+    [
+      11,
+      6,
+      0,
+      9,
+      1,
+      "VAE"
+    ],
+    [
+      12,
+      9,
+      0,
+      10,
+      0,
+      "IMAGE"
+    ],
+    [
+      13,
+      2,
+      0,
+      11,
+      0,
+      "MASK"
+    ],
+    [
+      14,
+      15,
+      0,
+      12,
+      0,
+      "IMAGE"
+    ],
+    [
+      15,
+      6,
+      0,
+      12,
+      1,
+      "VAE"
+    ],
+    [
+      16,
+      12,
+      0,
+      14,
+      0,
+      "LATENT"
+    ],
+    [
+      17,
+      17,
+      0,
+      14,
+      1,
+      "MASK"
+    ],
+    [
+      18,
+      1,
+      0,
+      15,
+      0,
+      "IMAGE"
+    ],
+    [
+      19,
+      11,
+      0,
+      16,
+      0,
+      "IMAGE"
+    ],
+    [
+      20,
+      16,
+      0,
+      17,
+      0,
+      "IMAGE"
+    ],
+    [
+      21,
+      15,
+      0,
+      18,
+      0,
+      "IMAGE"
+    ],
+    [
+      22,
+      18,
+      0,
+      19,
+      0,
+      "INT"
+    ],
+    [
+      23,
+      18,
+      1,
+      19,
+      1,
+      "INT"
+    ],
+    [
+      24,
+      19,
+      1,
+      7,
+      5,
+      "INT"
+    ]
+  ],
+  "groups": [
+    {
+      "id": 1,
+      "title": "自动分辨率 · Image 1 → Text Encode",
+      "bounding": [
+        1296,
+        446,
+        583,
+        247
+      ],
+      "color": "#3f789e",
+      "font_size": 22,
+      "flags": {}
+    }
+  ],
+  "config": {},
+  "extra": {
+    "ds": {
+      "scale": 0.54,
+      "offset": [
+        40,
+        75
+      ]
+    }
+  },
+  "version": 0.4
+}

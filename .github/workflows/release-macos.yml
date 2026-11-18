@@ -1,0 +1,54 @@
+name: macOS ARM64 release
+
+on:
+  push:
+    tags:
+      - 'v*-mac-arm64'
+
+permissions:
+  contents: write
+
+jobs:
+  build-and-release:
+    runs-on: macos-latest
+    steps:
+      - name: Check out tagged source
+        uses: actions/checkout@v4
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+      - name: Install dependencies
+        run: npm ci
+      - name: Build macOS ARM64 DMG
+        run: npm run dist:mac
+      - name: Generate SHA-256 checksum
+        run: |
+          VERSION="$(node -p "require('./package.json').version")"
+          DMG="release/BD-Modder-${VERSION}-mac-arm64.dmg"
+          shasum -a 256 "$DMG" > release/SHA256SUMS-macos.txt
+      - name: Publish GitHub release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG_NAME: ${{ github.ref_name }}
+        run: |
+          VERSION="$(node -p "require('./package.json').version")"
+          EXPECTED_TAG="v${VERSION}-mac-arm64"
+          test "$TAG_NAME" = "$EXPECTED_TAG"
+          DMG="release/BD-Modder-${VERSION}-mac-arm64.dmg"
+          CHECKSUMS="release/SHA256SUMS-macos.txt"
+          NOTES="$RUNNER_TEMP/release-notes.md"
+          cat > "$NOTES" <<EOF
+          BD Modder ${VERSION} 的 macOS Apple Silicon（ARM64）安装包，适用于 macOS 13 或更新版本。
+
+          下载并打开 DMG，将 BD Modder.app 拖入「应用程序」。
+
+          本构建使用临时签名，Apple 公证和 Mac 真机启动验证尚未完成。首次打开若被系统拦截，请参阅 [Apple 的打开说明](https://support.apple.com/en-us/102445)。
+          EOF
+          if gh release view "$TAG_NAME" --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
+            gh release upload "$TAG_NAME" "$DMG" "$CHECKSUMS" --repo "$GITHUB_REPOSITORY" --clobber
+            gh release edit "$TAG_NAME" --repo "$GITHUB_REPOSITORY" --title "BD Modder ${VERSION} · macOS ARM64 测试版" --notes-file "$NOTES" --prerelease
+          else
+            gh release create "$TAG_NAME" "$DMG" "$CHECKSUMS" --repo "$GITHUB_REPOSITORY" --title "BD Modder ${VERSION} · macOS ARM64 测试版" --notes-file "$NOTES" --prerelease
+          fi

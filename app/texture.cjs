@@ -1,5 +1,6 @@
 'use strict';
 const { PNG } = require('pngjs');
+const { meshCoverage } = require('./uv-coverage.cjs');
 const LIMIT = 8192;
 function png(buffer) {
   buffer = Buffer.from(buffer);
@@ -65,28 +66,56 @@ function validateRects(rects, image) {
   if (!Array.isArray(rects) || !rects.length || rects.length > 10000) throw Error('请先选择部件。');
   for (const r of rects) if (![r.x, r.y, r.width, r.height].every(Number.isInteger) || r.x < 0 || r.y < 0 || r.width <= 0 || r.height <= 0 || r.x + r.width > image.width || r.y + r.height > image.height) throw Error('部件选区超出图集。');
 }
+function crop(buffer, rect, meshes = []) {
+  const source = png(buffer);
+  validateRects([rect], source);
+  const coverage = meshCoverage(source, rect, meshes);
+  const out = new PNG({ width: rect.width, height: rect.height });
+  PNG.bitblt(source, out, rect.x, rect.y, rect.width, rect.height, 0, 0);
+  if (coverage) for (let i = 0; i < coverage.length; i++) {
+    if (!coverage[i]) out.data.fill(0, i * 4, i * 4 + 4);
+  }
+  return PNG.sync.write(out);
+}
 function edit(buffer, operation, rects, options = {}) {
   const image = png(buffer); validateRects(rects, image);
-  if (!['tint', 'hide', 'restore', 'replace', 'merge'].includes(operation)) throw Error('不支持的编辑操作。');
+  if (!['tint', 'hide', 'gray', 'restore', 'replace', 'merge'].includes(operation)) throw Error('不支持的编辑操作。');
   const replacement = ['replace', 'merge', 'restore'].includes(operation) ? png(options.image) : null;
-  if (operation === 'replace' && rects.length !== 1) throw Error('替换部件时请只选择一个部件。');
+  const replacingPart = operation === 'replace';
+  const restoringPart = operation === 'restore';
+  const gray = operation === 'gray';
+  const maskingHidden = operation === 'hide' || gray;
+  const shaded = gray ? new Uint8Array(image.width * image.height) : null;
+  if (replacingPart && rects.length !== 1) throw Error('替换部件时请只选择一个部件。');
   if (['merge', 'restore'].includes(operation) && (replacement.width !== image.width || replacement.height !== image.height)) throw Error('图集替换尺寸必须与原始图集一致。');
   const color = /^#[\da-f]{6}$/i.test(options.color || '') ? options.color.slice(1).match(/../g).map(v => parseInt(v, 16)) : [141, 178, 228];
   const strength = Math.max(0, Math.min(1, Number(options.strength ?? 0.65)));
   if (!Number.isFinite(strength)) throw Error('无效的重绘幅度。');
-  for (const r of rects) for (let y = 0; y < r.height; y++) for (let x = 0; x < r.width; x++) {
-    const p = ((r.y + y) * image.width + r.x + x) * 4;
-    if (operation === 'hide') image.data.fill(0, p, p + 4);
-    else if (operation === 'tint') {
-      const luma = (image.data[p] * .2126 + image.data[p + 1] * .7152 + image.data[p + 2] * .0722) / 128;
-      for (let c = 0; c < 3; c++) image.data[p + c] = Math.round(image.data[p + c] * (1 - strength) + Math.min(255, color[c] * luma) * strength);
-    } else {
-      const sx = operation === 'replace' ? Math.min(replacement.width - 1, Math.floor(x / r.width * replacement.width)) : r.x + x;
-      const sy = operation === 'replace' ? Math.min(replacement.height - 1, Math.floor(y / r.height * replacement.height)) : r.y + y;
-      const q = (sy * replacement.width + sx) * 4;
-      const oldAlpha = image.data[p + 3];
-      for (let c = 0; c < (options.preserveAlpha ? 3 : 4); c++) image.data[p + c] = replacement.data[q + c];
-      if (options.preserveAlpha) image.data[p + 3] = oldAlpha;
+  for (const r of rects) {
+    const meshes = replacingPart ? options.meshes : r.meshes;
+    const coverage = replacingPart || restoringPart || maskingHidden ? meshCoverage(image, r, meshes ?? []) : null;
+    for (let y = 0; y < r.height; y++) for (let x = 0; x < r.width; x++) {
+      if (coverage && !coverage[y * r.width + x]) continue;
+      const p = ((r.y + y) * image.width + r.x + x) * 4;
+      if (maskingHidden && !coverage && !image.data[p + 3]) continue;
+      if (operation === 'hide') image.data.fill(0, p, p + 4);
+      else if (operation === 'tint' || gray) {
+        const luma = image.data[p] * .2126 + image.data[p + 1] * .7152 + image.data[p + 2] * .0722;
+        if (gray) {
+          if (shaded[p / 4]) continue;
+          shaded[p / 4] = 1;
+          image.data.fill(Math.round(luma * .65), p, p + 3);
+        } else for (let c = 0; c < 3; c++) image.data[p + c] = Math.round(image.data[p + c] * (1 - strength) + Math.min(255, color[c] * (luma / 128)) * strength);
+      } else {
+        const sx = replacingPart ? Math.min(replacement.width - 1, Math.floor(x / r.width * replacement.width)) : r.x + x;
+        const sy = replacingPart ? Math.min(replacement.height - 1, Math.floor(y / r.height * replacement.height)) : r.y + y;
+        const q = (sy * replacement.width + sx) * 4;
+        const oldAlpha = image.data[p + 3], sourceAlpha = replacement.data[q + 3];
+        if (replacingPart && (!oldAlpha || !sourceAlpha)) continue;
+        if (restoringPart && !coverage && !sourceAlpha) continue;
+        for (let c = 0; c < (options.preserveAlpha ? 3 : 4); c++) image.data[p + c] = replacement.data[q + c];
+        if (options.preserveAlpha) image.data[p + 3] = oldAlpha;
+      }
     }
   }
   return PNG.sync.write(image);
@@ -97,4 +126,4 @@ function mask(buffer, rects) {
   for (const r of rects) for (let y = r.y; y < r.y + r.height; y++) for (let x = r.x; x < r.x + r.width; x++) { const p = (y * image.width + x) * 4; out.data[p] = out.data[p + 1] = out.data[p + 2] = image.data[p + 3]; }
   return PNG.sync.write(out);
 }
-module.exports = { png, unpickle, decodeBytes, encodeBytes, edit, mask, validateRects };
+module.exports = { png, unpickle, decodeBytes, encodeBytes, crop, edit, mask, validateRects };

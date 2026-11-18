@@ -41,17 +41,17 @@
         <div class="library-filters" role="tablist" aria-label="部件筛选"><button role="tab" aria-selected="true" data-filter="visible">当前姿态</button><button role="tab" aria-selected="false" data-filter="all">全部</button><button role="tab" aria-selected="false" data-filter="selected">已选 <span id="filter-selected-count">1</span></button><button role="tab" aria-selected="false" data-filter="hidden">已隐藏 <span id="filter-hidden-count">0</span></button></div>
         <div class="list-caption"><span id="list-caption">部件</span><span><span data-primary-key>Ctrl</span> 多选</span></div>
         <div class="part-list" id="part-list" role="listbox" aria-label="部件" aria-multiselectable="true"></div>
-        <div class="library-bottom"><span class="key-hint" data-primary-key>Ctrl</span><span>点击以添加或移除选区</span></div>
+        <div class="library-bottom"><kbd data-primary-key>Ctrl</kbd><span>增减选择</span><kbd>Shift</kbd><span>连续选择</span></div>
       </aside>
 
       <section class="stage-panel panel" aria-label="创作画布">
         <div class="stage-toolbar">
           <div class="stage-primary"><div class="segmented" role="tablist" aria-label="画布模式"><button role="tab" aria-selected="true" data-view="scene">角色预览</button><button role="tab" aria-selected="false" data-view="atlas">贴图图集</button></div><div class="stage-selects"><label class="toolbar-select" title="动画"><span class="sr-only">动画</span><select id="animation-select" aria-label="选择动画"></select></label><label class="toolbar-select" title="皮肤"><span class="sr-only">皮肤</span><select id="skin-select" aria-label="皮肤"><option>default</option></select></label></div></div>
-          <div class="stage-tool-actions"><button class="button compact subtle" id="mesh-toggle" aria-pressed="false" title="显示已选部件的真实三角形网格">网格</button><button class="button compact subtle" id="fit-button" title="将作品适应画布">适应 <span class="key-hint">0</span></button><button class="button compact icon-button" id="inspector-toggle" aria-label="展开或收起检查器" aria-expanded="true" title="检查器">▥</button></div>
+          <div class="stage-tool-actions"><button class="button compact subtle" id="mesh-toggle" aria-pressed="false" title="显示已选部件的真实三角形网格">网格</button><button class="button compact subtle" id="bones-toggle" aria-pressed="false" title="叠加显示角色骨骼">骨骼</button><button class="button compact subtle" id="fit-button" title="将作品适应画布">适应 <span class="key-hint">0</span></button><button class="button compact icon-button" id="inspector-toggle" aria-label="展开或收起检查器" aria-expanded="true" title="检查器">▥</button></div>
         </div>
         <div class="viewports" id="viewports">
           <div class="viewport scene-viewport" id="scene-viewport" tabindex="0" aria-label="角色预览，点击部件选择，拖动画布平移">
-            <div class="viewport-caption"><span>SCENE</span><span>点击定位部件</span></div>
+            <div class="viewport-caption"><span>SCENE</span><span id="scene-pick-hint">点击定位部件</span><button class="button compact" id="restore-full-preview" hidden>恢复完整预览</button></div>
             <canvas id="scene-canvas" aria-label="Spine 实时预览"></canvas><canvas id="scene-overlay" aria-hidden="true"></canvas>
             <div class="canvas-empty" id="canvas-empty"><span class="empty-symbol">＋</span><h2>开始制作你的 MOD</h2><p>打开 MOD 文件夹、.modfile 或 ZIP，从原始图集实时预览。</p><button class="button primary" data-action="open">打开 MOD</button></div>
             <div class="state-mask" id="loading-mask" hidden><div class="spinner"></div><span>正在读取 MOD…</span></div>
@@ -59,8 +59,8 @@
           </div>
           <div class="viewport atlas-viewport" id="atlas-viewport">
             <div class="viewport-caption"><span>ATLAS</span><label><select id="atlas-select" aria-label="选择贴图页"></select></label></div>
-            <div class="atlas-sheet" id="atlas-sheet"><img id="atlas-image" draggable="false" alt="当前 MOD 的原始贴图图集"><svg id="atlas-overlay" aria-hidden="true"></svg></div>
-            <div class="viewport-bottom"><span id="atlas-size">—</span><span>原始贴图</span></div>
+            <div class="atlas-sheet" id="atlas-sheet"><img id="atlas-image" draggable="false" alt="当前显示的贴图图集"><svg id="atlas-overlay" aria-hidden="true"></svg></div>
+            <div class="viewport-bottom"><span id="atlas-size">—</span><span id="atlas-source">当前贴图</span></div>
           </div>
         </div>
         <div class="timeline"><div class="timeline-row"><div class="transport"><button class="button icon-button" id="step-back" aria-label="回到起点" title="回到起点">|‹</button><button class="play-button" id="play-button" aria-label="播放动画" aria-pressed="false" title="播放 / 暂停（空格）">▶</button><button class="button icon-button" id="step-forward" aria-label="前进一步" title="前进一步">›|</button></div><div class="scrubber"><input id="timeline-range" type="range" min="0" max="1" step="1" value="0" aria-label="动画播放位置"></div><span class="timeline-clock"><span id="time-current">00:00</span><span class="muted"> / </span><span id="time-total">00:00</span></span><label class="speed-control"><select id="speed-select" aria-label="播放速度"><option value="0.5">0.5×</option><option value="1" selected>1×</option><option value="2">2×</option><option value="0.25">0.25×</option></select></label><div class="zoom-control"><button class="button icon-button" id="zoom-out" aria-label="缩小">−</button><button class="zoom-value" id="zoom-value" title="重置缩放">100%</button><button class="button icon-button" id="zoom-in" aria-label="放大">＋</button></div></div></div>
@@ -68,24 +68,58 @@
 
       <aside class="inspector-panel panel" aria-label="属性检查器">
         <div class="inspector-top"><h2>检查器</h2><button class="button icon-button" id="inspector-close" aria-label="收起检查器">›</button></div>
-        <div class="inspector-tabs" role="tablist" aria-label="检查器内容"><button role="tab" aria-selected="true" data-inspector="part">部件</button><button role="tab" aria-selected="false" data-inspector="texture">贴图</button><button role="tab" aria-selected="false" data-inspector="ai">AI 重绘</button></div>
+        <div class="inspector-tabs" role="tablist" aria-label="检查器内容"><button role="tab" aria-selected="true" data-inspector="part">部件</button><button role="tab" aria-selected="false" data-inspector="texture">贴图</button><button role="tab" aria-selected="false" data-inspector="ai">局部重绘</button></div>
         <div class="inspector-scroll" id="inspector-scroll">
           <section class="inspector-page" data-page="part">
             <div class="selection-summary"><div class="selection-thumb checker"><img id="selection-thumb" alt="已选部件缩略图"></div><div><span class="eyebrow">SELECTION</span><h3 id="selection-name">—</h3><span class="small muted" id="selection-kind">选择一个部件以查看属性</span></div></div>
             <div class="selection-note" id="selection-note">—</div>
             <div class="inspector-section"><div class="section-heading"><h3>部件信息</h3><span class="small muted">图集坐标</span></div><dl class="property-list"><div><dt>名称</dt><dd id="property-name">—</dd></div><div><dt>位置</dt><dd id="property-position">—</dd></div><div><dt>尺寸</dt><dd id="property-size">—</dd></div><div><dt>旋转</dt><dd id="property-rotation">—</dd></div><div><dt>图集页</dt><dd id="property-page">—</dd></div></dl></div>
-            <div class="inspector-section"><div class="section-heading"><h3>在画布中</h3></div><button class="button full" id="locate-button">定位已选部件 <span>↗</span></button><label class="toggle-row"><span>显示选区边框</span><input type="checkbox" id="selection-toggle" checked><span class="switch" aria-hidden="true"></span></label><p class="help-text">画布和部件列表同步选择。按住 <span data-primary-key>Ctrl</span> 可同时选择多个部件。</p></div>
-            <div class="inspector-section"><h3>编辑选中部件</h3><div class="color-edit-row"><input id="tint-color" type="color" value="#8db2e4" aria-label="部件颜色"><label>着色强度<input id="tint-strength" type="range" min="0" max="1" step="0.05" value="0.65"></label></div><button class="button full" id="tint-parts">应用颜色</button><div class="edit-actions"><button class="button" id="hide-parts">隐藏部件</button><button class="button" id="show-parts">显示部件</button><button class="button" id="restore-parts">还原贴图</button><button class="button" id="replace-part">替换 PNG</button><button class="button" id="export-part">导出部件</button></div><p class="help-text">替换和导出使用图集中存储的方向。隐藏部件在图集中显示为灰色；导出时清除其像素。保存保留可恢复的隐藏记录。</p></div><div class="inspector-section selection-next"><span class="eyebrow">NEXT STEP</span><h3>开始局部重绘</h3><p>为当前选区填写修改要求。</p><button class="text-button" id="go-ai">前往 AI 重绘 <span>→</span></button></div>
+            <div class="inspector-section"><div class="section-heading"><h3>在画布中</h3></div><button class="button full" id="locate-button">定位已选部件 <span>↗</span></button><label class="toggle-row"><span>显示选区轮廓</span><input type="checkbox" id="selection-toggle" checked><span class="switch" aria-hidden="true"></span></label><p class="help-text">画布和部件列表同步选择。按住 <span data-primary-key>Ctrl</span> 可同时选择多个部件。</p></div>
+            <div class="inspector-section"><h3>编辑选中部件</h3><div class="color-edit-row"><input id="tint-color" type="color" value="#8db2e4" aria-label="部件颜色"><label>着色强度<input id="tint-strength" type="range" min="0" max="1" step="0.05" value="0.65"></label></div><button class="button full" id="tint-parts">应用颜色</button><div class="edit-actions"><button class="button" id="hide-parts">隐藏部件</button><button class="button" id="show-parts">显示部件</button><button class="button" id="restore-parts" title="按部件轮廓还原到本次打开时的贴图">还原贴图</button><button class="button" id="replace-part">替换 PNG</button><button class="button" id="export-part">导出部件</button></div><p class="help-text">单个部件按原尺寸和图集方向导出，网格外透明。单部件替换仅写入部件与导入图都可见的像素。多选时可导出或替换当前帧的组合 PNG；组合替换仅支持同一图集页上当前可见的部件，并按局部重绘的 UV 映射写回。请保持组合 PNG 的原始裁切、位置和留白。组合画布默认为 1024 × 1024，放不下时使用 2048 × 2048。隐藏部件在图集中显示为灰色，导出时清除其像素。保存保留可恢复的隐藏记录。</p></div><div class="inspector-section selection-next"><span class="eyebrow">NEXT STEP</span><h3>开始局部重绘</h3><p>为当前选区填写修改要求。</p><button class="text-button" id="go-ai">前往局部重绘 <span>→</span></button></div>
           </section>
           <section class="inspector-page" data-page="texture" hidden>
-            <div class="inspector-section"><span class="eyebrow">TEXTURE ATLAS</span><h3 class="section-title">查看原始贴图</h3><p class="help-text">在图集中找到选区的像素位置，并对照角色姿态。</p><button class="button full" id="show-atlas">在画布中打开图集 <span>↗</span></button></div>
+            <div class="inspector-section"><span class="eyebrow">TEXTURE ATLAS</span><h3 class="section-title">查看贴图图集</h3><p class="help-text">在图集中找到选区的像素位置，并对照角色姿态。</p><button class="button full" id="show-atlas">在画布中打开图集 <span>↗</span></button></div>
             <div class="inspector-section"><h3>当前页</h3><dl class="property-list"><div><dt>文件</dt><dd id="texture-file">—</dd></div><div><dt>分辨率</dt><dd id="texture-size">—</dd></div><div><dt>页数</dt><dd id="texture-page-count">6</dd></div></dl><button class="button full" id="export-page">导出当前图集 PNG</button><button class="button full" id="replace-page">替换整张图集</button></div>
           </section>
           <section class="inspector-page" data-page="ai" hidden>
-            <div class="inspector-section"><div class="section-heading"><span class="eyebrow">AI REDRAW</span><span class="outline-tag" id="service-state">未配置</span></div><h3 class="section-title">设置重绘要求</h3><p class="help-text" id="ai-selection-hint">先选择需要修改的部件。</p></div>
+            <div class="inspector-section"><div class="section-heading"><span class="eyebrow">局部重绘</span></div><h3 class="section-title">设置重绘要求</h3><p class="help-text" id="ai-selection-hint">先选择需要修改的部件。</p></div>
             <div class="inspector-section"><label class="field-label" for="prompt-input">修改要求</label><textarea id="prompt-input" rows="5" placeholder="例如：将选中的衣料调整为雾蓝色，保留原有褶皱和轮廓。"></textarea><div class="prompt-hint"><span>仅作用于当前选区</span><span id="prompt-count">0</span></div></div>
-            <div class="inspector-section"><label class="field-label" for="provider-select">重绘服务</label><select class="field-select" id="provider-select"><option value="ComfyUI">本地 ComfyUI</option><option value="RunningHub">RunningHub</option></select><button class="text-button connection-button" data-action="connection">设置服务连接 <span>↗</span></button><button class="button full" id="workflow-settings">导入 / 配置工作流</button><p class="help-text" id="workflow-name">尚未配置工作流</p><label class="field-label range-label" for="strength-input">重绘幅度 <output id="strength-value">0.40</output></label><input id="strength-input" type="range" min="0" max="1" step="0.05" value="0.4"><div class="parameter-grid"><label>步数<input id="steps-input" type="number" min="1" max="100" value="20"></label><label>种子<input id="seed-input" type="text" placeholder="随机" aria-label="随机种子"></label></div></div>
-            <div class="inspector-section"><button class="button primary full" id="generate-button">生成预览</button><button class="button full" id="cancel-generation" hidden>停止等待任务</button><p class="help-text" id="generation-progress">生成结果会先预览，确认后再应用到选区。</p></div>
+            <div class="inspector-section">
+              <div class="section-heading"><h3>内置 Qwen 2.1</h3><span class="outline-tag">RunningHub</span></div>
+              <button class="text-button connection-button" data-action="connection">设置服务连接 <span>↗</span></button>
+              <div class="parameter-grid">
+                <label>每轮步数<input id="steps-input" type="number" min="1" max="100" value="25"></label>
+                <label>种子<input id="seed-input" type="text" placeholder="随机" aria-label="随机种子"></label>
+                <label class="parameter-wide">第一轮降噪强度（Denoise）<input id="repaint-first-denoise" type="number" min="0" max="1" step="any" value="1" required></label>
+                <label class="parameter-wide">第二轮降噪强度（Denoise）<input id="repaint-second-denoise" type="number" min="0" max="1" step="any" value="0.88" required></label>
+              </div>
+            </div>
+
+            <div class="inspector-section repaint-controls">
+              <h3>UV 回写与蒙版</h3>
+              <label class="toggle-row repaint-second-round-toggle" for="repaint-second-round">
+                <span>启用第二轮补绘</span>
+                <input type="checkbox" id="repaint-second-round" checked>
+                <span class="switch" aria-hidden="true"></span>
+              </label>
+              <p class="help-text repaint-second-round-help">关闭后只执行组装图重绘与 UV 回写，未覆盖像素会保留为待补。</p>
+              <label class="field-label" for="repaint-writeback">写回通道</label>
+              <select class="field-select" id="repaint-writeback" aria-describedby="repaint-writeback-help">
+                <option value="rgb">仅写回 RGB（保留透明度）</option>
+                <option value="argb">写回 ARGB（色彩 + 透明度）</option>
+              </select>
+              <p class="help-text" id="repaint-writeback-help">ARGB 使用成图的 Alpha。RGB 成图沿用原图集透明度。</p>
+              <div class="parameter-grid">
+                <label>第一轮交界宽度（px）<input type="number" id="repaint-seam-expand" data-repaint-option="seamExpand" min="0" step="1" required></label>
+                <label>第二轮蒙版扩展（px）<input type="number" id="repaint-mask-expand" data-repaint-option="maskExpand" min="0" step="1" required></label>
+                <label>第二轮羽化（px）<input type="number" id="repaint-mask-feather" data-repaint-option="maskFeather" min="0" step="1" required></label>
+              </div>
+              <p class="help-text">第一轮工作图用 Alpha 表示选区，由 ComfyUI 裁切并将结果回贴到原画布。交界宽度按组装图像素计算，第二轮蒙版按原尺寸 UV 像素计算。</p>
+            </div>
+            <div class="inspector-section"><button class="button primary full" id="generate-button">开始局部重绘</button><button class="button full" id="cancel-generation" hidden>停止等待任务</button><p class="help-text" id="generation-progress" role="status"><span id="generation-progress-label">组装图重绘、UV 回写和缺口补绘会连续运行。</span><span id="generation-progress-meta" hidden aria-hidden="true"></span></p>
+              <div id="repaint-result" hidden><p class="help-text" id="repaint-result-stats"></p><button type="button" class="button full" id="open-repaint-details" aria-haspopup="dialog">查看处理详情</button><div class="edit-actions"><button class="button" id="toggle-repaint-source">看原图</button><button class="button" id="discard-repaint">放弃结果</button></div><button class="button primary full" id="apply-repaint">应用重绘</button></div>
+            </div>
+            <div class="inspector-section"><details><summary>自定义图集工作流</summary><label class="field-label" for="provider-select">重绘服务</label><select class="field-select" id="provider-select"><option value="ComfyUI">本地 ComfyUI</option><option value="RunningHub">RunningHub</option></select><button class="button full" id="workflow-settings">导入 / 配置工作流</button><span class="outline-tag" id="service-state">未配置</span><p class="help-text" id="workflow-name">尚未配置工作流</p><label class="field-label range-label" for="strength-input">重绘幅度 <output id="strength-value">0.40</output></label><input id="strength-input" type="range" min="0" max="1" step="0.05" value="0.4"><button class="button full" id="legacy-generate-button">生成图集预览</button></details></div>
           </section>
         </div>
         <div class="inspector-foot"><span class="status-dot"></span><span><span id="dirty-state">未修改</span></span><span class="small muted">1.0</span></div>
@@ -97,6 +131,13 @@
 
   <section class="settings-page" id="settings-page" hidden aria-label="设置"></section>
 
+  <dialog id="repaint-details-dialog" aria-labelledby="repaint-details-title">
+    <div class="repaint-details-header">
+      <div><h2 id="repaint-details-title">局部重绘详情</h2><p id="repaint-details-pose" class="muted"></p></div>
+      <button type="button" class="button" id="close-repaint-details" autofocus>返回工作台</button>
+    </div>
+    <div id="repaint-details-content"></div>
+  </dialog>
   <dialog id="action-dialog"><div class="dialog-heading"><span class="eyebrow" id="dialog-eyebrow">WORKSPACE</span><button class="button icon-button" id="dialog-close" aria-label="关闭对话框">×</button></div><h2 id="dialog-title">打开素材</h2><div id="dialog-content"></div><div class="dialog-actions" id="dialog-actions"></div></dialog>
   <div class="toast" id="toast" role="status" aria-live="polite" hidden></div>
 </body>

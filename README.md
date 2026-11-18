@@ -12,9 +12,11 @@
 
 ## 1.2 隐藏部件
 
-选择一个或多个部件后按 H，或在左侧部件上右键选择“隐藏选中部件”。角色实时预览隐藏这些部件，左侧缩略图与图集区域变灰。右键“显示隐藏部件”或检查器“显示部件”恢复显示，保留调色和替换结果。隐藏和显示均可撤销 / 重做；H 可以在设置 → 快捷键中修改。
+选择一个或多个部件后按 H，或在左侧部件上右键选择“隐藏选中部件”。角色预览隐藏这些部件，图集沿部件 UV 网格灰显，无网格时按贴图的非透明像素灰显。右键“显示隐藏部件”或检查器“显示部件”恢复显示，保留调色和替换结果。隐藏和显示均可撤销 / 重做。H 可以在设置 → 快捷键中修改。
 
-普通保存会将隐藏记录写入 .bdmodder-editor.json，保留工作贴图以便以后恢复。导出 MOD ZIP、另存为 MOD 文件夹、导出图集或部件 PNG 时，将隐藏部件覆盖区域的 RGBA 全部清零；保留图集尺寸、atlas 坐标与骨骼引用。编辑器隐藏记录和备份不会进入导出包。另存的成品已清除隐藏像素，需要恢复时请使用原工作项目。
+普通保存会将隐藏记录写入 .bdmodder-editor.json，保留工作贴图以便以后恢复。导出 MOD ZIP、另存为 MOD 文件夹、导出图集或部件 PNG 时，按同一轮廓清除隐藏部件的 RGBA 像素，保留图集尺寸、atlas 坐标与骨骼引用。编辑器隐藏记录和备份不会进入导出包。另存的成品已清除隐藏像素，需要恢复时请使用原工作项目。
+
+右键选择“只看选中部件”可临时隔离角色预览。菜单和角色画布上的“恢复完整预览”均可退出。
 
 ## 1.1 界面更新
 
@@ -27,8 +29,8 @@
 - 原始图集实时 WebGL 动画、皮肤切换、播放暂停、逐帧和时间轴拖动、速度设置。
 - 按屏幕像素密度调整绘制尺寸；预览放大无固定倍率上限。角色和图集分别支持缩放、拖动、适应。
 - 标准 / 图集对照；两种模式都能打开检查器。
-- 角色按三角网格、裁剪和纹理 Alpha 点选，图集同步定位，部件搜索、当前姿态 / 全部 / 已选筛选、Ctrl 多选、网格和选区边框。
-- 部件着色、隐藏（含左侧“已隐藏”分类）、从本次打开时的原图还原、替换 PNG、导出部件；整张图集替换与导出。部件 PNG 使用图集中存储的方向，旋转角度显示在检查器中。
+- 角色按三角网格、裁剪和纹理 Alpha 点选。图集按部件 UV 网格和纹理 Alpha 点选，可与角色同步定位。角色和图集都沿选中部件的可见边缘描绘轮廓。支持部件搜索、当前姿态 / 全部 / 已选筛选、Ctrl 多选、Shift 区间选择和网格显示。
+- 支持部件着色、隐藏（含左侧“已隐藏”分类）、从本次打开时的原图还原、替换 PNG 和导出，也支持整张图集替换与导出。还原贴图按部件 UV 网格写入，无网格时使用原图的非透明像素。单个部件按原尺寸和图集方向导出，UV 网格外透明。替换 PNG 时只写入网格内原贴图和导入图都可见的像素。多选时将当前帧可见的选中部件按原始骨骼比例合成到 1024 × 1024 的透明 PNG，放不下时使用 2048 × 2048。
 - 撤销 / 重做、modfile JSON 配置编辑、原目录保存、另存为完整 MOD 文件夹、MOD ZIP 和透明预览 PNG 导出。
 - 保存前检查外部修改，保存时自动备份到原 MOD 下的 .bdmodder-backups。原素材在点击保存前不改动；ZIP 项目需要另存为。
 - ComfyUI 和 RunningHub 的工作流导入、节点映射、连接测试、图集局部重绘、进度、停止等待、结果预览后应用。
@@ -45,9 +47,31 @@
 macOS 使用 Command（⌘）对应下列 Ctrl 快捷键。按住 Command 点击可多选部件。
 
 - Ctrl+O 打开，Ctrl+S 保存，Ctrl+Shift+S 另存为，Ctrl+E 导出。
-- Ctrl+Z 撤销，Ctrl+Shift+Z 重做，H 隐藏选中部件。
+- Ctrl+Z 撤销，Ctrl+Shift+Z 重做，H 隐藏选中部件，Ctrl+D 清空选择。
 - Space 播放暂停，F 切换标准 / 图集对照，0 适应当前画布，/ 搜索部件。
 - 普通滚轮用于画布缩放；拖动平移。
+
+
+## 局部重绘
+
+在部件列表中选择同一张图集上的部件，停在能看清目标的动画帧，打开检查器的「局部重绘」。填写修改要求并开始。项目会组装工作图、提交第一轮、用 UV 三角形回写，可关闭第二轮补绘，或根据实际缺口裁出原尺寸贴图提交第二轮。若启用第二轮补绘，会独立传入第一轮生成的组装图和黑白缺口遮罩。工作图在采样时放大两倍，回写前按裙片轮廓校准取色位置，再用原尺寸遮罩限定写入。完成后角色会播放 `idle`，可以切换原图和结果并在确认后应用。
+
+「UV 回写与蒙版」可选择写回通道。默认的「仅写回 RGB」保留图集透明度。「写回 ARGB」使用成图的 Alpha 写回直接取样的像素。纯 RGB 成图、交界共用取色和近邻补色保留目标像素的透明度。
+
+内置工作流使用 [RunningHub 原生 ComfyUI 入口](https://www.runninghub.ai/runninghub-api-doc-en/doc-8287466)提交完整节点图。在「设置 → AI 绘图」中可以为多个 RunningHub API Key 命名并加密保存。切换启用的密钥后，新的连接测试和重绘任务会使用所选密钥。本案例通过国际站地址 `https://www.runninghub.ai/` 验证。两份 API 格式 JSON 也可导入支持 Qwen Image 2.1 的本地 ComfyUI。
+
+在本地 ComfyUI 中打开下面两份画布版，可用「文件 → 打开」或直接拖入画布。画布版含节点位置与连线。原有 API JSON 供 BD Modder 提交任务，较旧的导入器可能无法将它还原为画布。 [ComfyUI 工作流格式](https://docs.comfy.org/development/api-development/workflow-api-format)
+
+| 轮次 | 本地 ComfyUI 画布版 | BD Modder API 版 |
+| --- | --- | --- |
+| 第一轮 · 组装图重绘 | [打开画布 JSON](app/workflows/local-repaint-assembled.qwen21.canvas.json) | [API JSON](app/workflows/local-repaint-assembled.qwen21.json) |
+| 第二轮 · 原尺寸 UV 补绘 | [打开画布 JSON](app/workflows/local-repaint-uv.qwen21.canvas.json) | [API JSON](app/workflows/local-repaint-uv.qwen21.json) |
+
+两轮工作流都读取编辑目标的宽高，用 `round(sqrt(宽 × 高))` 设置 `TextEncodeQwenImage21` 的 `resolution`。第一轮读取组装图，第二轮读取放大两倍后的 UV 工作图。编码节点据此按输入宽高比把尺寸对齐到 32 的倍数。
+
+本地 ComfyUI 需要包含 `TextEncodeQwenImage21`、`GetImageSize` 和 `ComfyMathExpression` 节点。若提示节点缺失，更新 ComfyUI 和配套前端。模型准备好后，在第一轮的图像节点选择 `round-1-input.png`。第二轮分别选择 `round-2-input.png`、`round-2-model-mask.png` 和上一轮生成的 `round-1-output.png`（独立参考图）。PNG 可从 BD Modder 对应任务的 `jobs` 目录获取。 [Qwen Image 2.1 官方模板与依赖](https://docs.comfy.org/tutorials/image/qwen/qwen-image-2-1)
+
+本地需要将 `redqw21UNLOCKEDV2TI2I_redqw21UNLOCKEDV2_int8.safetensors` 放入 `models/diffusion_models`，将 `qwen3vl_8b_int8_convrot.safetensors` 放入 `models/text_encoders`，将 `qwen_image_2.1_vae_bf16.safetensors` 放入 `models/vae`。在工作流中的提示词节点填写实际修改要求。
 
 ## 开发和构建
 

@@ -32,6 +32,19 @@ test('macOS uses Command for existing shortcut bindings and reserves application
   assert.throws(() => validateShortcuts({ play: 'Ctrl+Q' }, true), /系统/);
   assert.equal(validateShortcuts({ play: 'Ctrl+Q' }).play, 'Ctrl+Q');
 });
+test('clear selection uses Ctrl+D when available and preserves older custom bindings', () => {
+  const { clearSelection, ...legacy } = DEFAULT_SHORTCUTS;
+  assert.equal(clearSelection, 'Ctrl+D');
+  const event = { key: 'd', code: 'KeyD', ctrlKey: true };
+  assert.equal(actionForEvent(event, validateShortcuts(legacy)), 'clearSelection');
+  assert.equal(actionForEvent({ ...event, ctrlKey: false, metaKey: true }, DEFAULT_SHORTCUTS, true), 'clearSelection');
+  const existing = { ...legacy, switchWorkspace: 'Ctrl+D', search: 'G' };
+  const migrated = validateShortcuts(existing);
+  assert.deepEqual(migrated, { ...existing, clearSelection: '' });
+  assert.equal(actionForEvent(event, migrated), 'switchWorkspace');
+  assert.deepEqual(validateShortcuts(migrated), migrated);
+  assert.throws(() => validateShortcuts({ ...existing, clearSelection: 'Ctrl+D' }), /已用于/);
+});
 test('shortcut settings survive restart and invalid updates leave the saved map intact', async t => {
   const root = await fs.mkdtemp(path.join(os.tmpdir(), 'bdmodder-shortcuts-')); t.after(() => fs.rm(root, { recursive: true, force: true }));
   const secrets = { isAsyncEncryptionAvailable: async () => true };

@@ -20,6 +20,7 @@ contextBridge.exposeInMainWorld('bd', Object.freeze({
   importWorkflow: () => call('bd:workflow'),
   checkService: provider => call('bd:check-service', provider),
   generate: payload => call('bd:generate', payload),
+  repaint: payload => call('bd:repaint', payload),
   cancelGeneration: () => call('bd:cancel-generation'),
   applyGeneration: id => call('bd:apply-generation', id),
   discardGeneration: () => call('bd:discard-generation'),

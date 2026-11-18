@@ -7,7 +7,8 @@ const os = require('node:os');
 const { PNG } = require('pngjs');
 const { zipSync, unzipSync } = require('fflate');
 const { Project, importZip, safeRelative, validateManifest } = require('../app/project.cjs');
-const { edit, mask, decodeBytes, encodeBytes, unpickle } = require('../app/texture.cjs');
+const { crop, edit, mask, decodeBytes, encodeBytes, unpickle } = require('../app/texture.cjs');
+const { atlasOutlinePath, pickAtlasPart } = require('../app/uv-coverage.cjs');
 const { Generation, normalizeProfile, validateProfile, bind } = require('../app/generation.cjs');
 const { Settings } = require('../app/settings.cjs');
 function image() { const png = new PNG({ width: 4, height: 4 }); for (let i = 0; i < png.data.length; i += 4) { png.data[i] = 40; png.data[i + 1] = 80; png.data[i + 2] = 120; png.data[i + 3] = i === 0 ? 0 : 255; } return PNG.sync.write(png); }
@@ -26,6 +27,98 @@ test('selection edits preserve transparent alpha and pixels outside selection', 
   const selection = PNG.sync.read(mask(image(), [rect])); assert.equal(selection.data[0], 0); assert.equal(selection.data[4], 255); assert.equal(selection.data[12], 0); assert.equal(selection.data[15], 255);
   const replacement = new PNG({ width: 4, height: 4 }); replacement.data.fill(255); const merged = PNG.sync.read(edit(image(), 'merge', [rect], { image: PNG.sync.write(replacement), preserveAlpha: true })); assert.equal(merged.data[3], 0); assert.equal(merged.data[7], 255); assert.equal(merged.data[4], 255);
   assert.throws(() => edit(image(), 'hide', [{ x: 3, y: 3, width: 2, height: 2 }]), /超出/);
+});
+test('atlas picking checks UV coverage, the current page, and texture alpha', () => {
+  const { width, height, data: pixels } = PNG.sync.read(image());
+  const page = { width, height, pixels };
+  const parts = [
+    { ...rect, x: 2, y: 2, page: 'first.png', name: 'neighbor' },
+    { ...rect, width, height, page: 'first.png', name: 'mesh' },
+    { ...rect, page: 'second.png', name: 'otherPage' }
+  ];
+  const meshes = part => part.name === 'mesh' ? [{ uvs: [0, 0, 1, 0, 0, 1], triangles: [0, 1, 2] }] : [];
+  const pick = (x, y) => pickAtlasPart(parts, 'first.png', page, x, y, meshes);
+  assert.equal(pick(1.9, 1.9), 'mesh');
+  assert.equal(pick(1.9, 2.9), 'mesh');
+  assert.equal(pick(2.3, 3.4), 'neighbor');
+  assert.equal(pick(3.6, 1.6), null);
+  assert.equal(pick(.5, .5), null);
+  assert.equal(pick(4, .5), null);
+});
+test('atlas outlines trace nontransparent pixels with or without UV coverage', () => {
+  const page = { width: 3, height: 3, pixels: new Uint8Array(3 * 3 * 4).fill(255) };
+  const part = { x: 0, y: 0, width: page.width, height: page.height };
+  page.pixels[(1 * page.width + 1) * 4 + 3] = 0;
+  assert.equal(atlasOutlinePath(page, part, []),
+    'M0 0H3M1 1H2M1 2H2M0 3H3M0 0V3M1 1V2M2 1V2M3 0V3');
+
+  const mesh = { uvs: [0, 0, 1, 0, 0, 1], triangles: [0, 1, 2] };
+  assert.equal(atlasOutlinePath(page, part, [mesh]), 'M0 0H3M1 1H3M0 3H1M0 0V3M1 1V3M3 0V1');
+  page.pixels.fill(0);
+  assert.equal(atlasOutlinePath(page, part, [mesh]), '');
+});
+test('mesh exports keep the original RGBA inside the outline and preserve neighbors on replacement', () => {
+  const pixel = (image, x, y) => {
+    const offset = (y * image.width + x) * 4;
+    return [...image.data.subarray(offset, offset + 4)];
+  };
+  const source = PNG.sync.read(image());
+  source.data.set([10, 20, 30, 127], (source.width + 1) * 4);
+  source.data[(source.width + 2) * 4 + 3] = 0;
+  const bytes = PNG.sync.write(source);
+  const part = { x: 1, y: 1, width: 3, height: 3 };
+  const meshes = [{ uvs: [.25, .25, .25, 1, 1, .25], triangles: [0, 1, 2] }];
+  const exported = crop(bytes, part, meshes);
+  const result = PNG.sync.read(exported);
+  assert.deepEqual([result.width, result.height], [3, 3]);
+  assert.deepEqual(pixel(result, 0, 0), [10, 20, 30, 127]);
+  assert.deepEqual(pixel(result, 2, 0), pixel(source, 3, 1));
+  assert.deepEqual(pixel(result, 2, 2), [0, 0, 0, 0]);
+
+  const replaced = edit(bytes, 'replace', [part], { image: exported, meshes });
+  assert.deepEqual(PNG.sync.read(replaced).data, source.data);
+  assert.deepEqual(pixel(PNG.sync.read(crop(bytes, part)), 2, 2), pixel(source, 3, 3));
+
+  const changed = new PNG({ width: part.width, height: part.height });
+  changed.data.fill(200);
+  changed.data[3] = 0;
+  const updated = PNG.sync.read(edit(bytes, 'replace', [part], { image: PNG.sync.write(changed), meshes }));
+  assert.deepEqual(pixel(updated, 1, 1), pixel(source, 1, 1));
+  assert.deepEqual(pixel(updated, 2, 1), pixel(source, 2, 1));
+  assert.deepEqual(pixel(updated, 3, 1), [200, 200, 200, 200]);
+  assert.deepEqual(pixel(updated, 3, 3), pixel(source, 3, 3));
+});
+test('restoring parts recovers original alpha and leaves pixels outside their footprints intact', async t => {
+  const { folder } = await fixture(t);
+  const source = PNG.sync.read(image());
+  source.data.set([10, 20, 30, 127], 20);
+  source.data[27] = 0;
+  await fs.writeFile(path.join(folder, 'page.png'), PNG.sync.write(source));
+  const project = new Project(folder);
+  await project.load();
+
+  const changed = new PNG({ width: source.width, height: source.height });
+  changed.data.fill(200);
+  changed.data[7] = changed.data[23] = 0;
+  await project.replacePage('page.png', PNG.sync.write(changed));
+  const before = project.page('page.png').bytes;
+  await project.mutate('page.png', 'restore', [
+    { x: 1, y: 1, width: 3, height: 3, meshes: [{ uvs: [.25, .25, .25, 1, 1, .25], triangles: [0, 1, 2] }] },
+    { ...rect, meshes: [] }
+  ]);
+  const restored = project.page('page.png').bytes;
+  const actual = PNG.sync.read(restored);
+  for (let y = 0; y < source.height; y++) for (let x = 0; x < source.width; x++) {
+    const offset = (y * source.width + x) * 4;
+    const inMesh = x >= 1 && y >= 1 && x + y <= 4;
+    const inOriginalOutline = x < 2 && y < 2 && source.data[offset + 3] !== 0;
+    const expected = inMesh || inOriginalOutline ? source : changed;
+    assert.deepEqual(actual.data.subarray(offset, offset + 4), expected.data.subarray(offset, offset + 4), `pixel ${x}, ${y}`);
+  }
+  assert.equal(project.undo().redo, true);
+  assert.deepEqual(project.page('page.png').bytes, before);
+  project.undo(true);
+  assert.deepEqual(project.page('page.png').bytes, restored);
 });
 test('compressed Unity texture roundtrip preserves all channel layouts and row direction', () => {
   for (const format of [3, 4, 5, 14]) { const header = Buffer.alloc(16); header.writeInt32LE(format, 8); const compressed = encodeBytes(image(), header); assert.deepEqual(PNG.sync.read(decodeBytes(compressed)).data, PNG.sync.read(image()).data); }
@@ -54,11 +147,58 @@ test('save detects external modifications and does not overwrite them', async t 
   const external = edit(image(), 'tint', [{ x: 2, y: 2, width: 1, height: 1 }], { color: '#00ff00', strength: 1 }); await fs.writeFile(path.join(folder, 'page.png'), external);
   await assert.rejects(p.save(), /其他程序/); assert.deepEqual(await fs.readFile(path.join(folder, 'page.png')), external); assert.equal(p.dirty(), true);
 });
+const testSecrets = { isAsyncEncryptionAvailable: async () => true, encryptStringAsync: async text => Buffer.from(text.split('').reverse().join('')), decryptStringAsync: async bytes => ({ result: bytes.toString().split('').reverse().join('') }) };
 test('settings never expose or persist plaintext credentials', async t => {
-  const { root } = await fixture(t), secrets = { isAsyncEncryptionAvailable: async () => true, encryptStringAsync: async text => Buffer.from(text.split('').reverse().join('')), decryptStringAsync: async bytes => ({ result: bytes.toString().split('').reverse().join('') }) };
+  const { root } = await fixture(t), secrets = testSecrets;
   const cfg = new Settings(path.join(root, 'settings'), secrets); await cfg.load(); const result = await cfg.save({ apiKey: 'private-test-value', address: 'http://localhost:8188' }); assert.equal(result.hasKey, true); assert.equal('encryptedKey' in result, false); assert.equal(cfg.key(), 'private-test-value');
   assert.equal((await fs.readFile(path.join(root, 'settings/settings.json'), 'utf8')).includes('private-test-value'), false);
   const loaded = new Settings(path.join(root, 'settings'), secrets); await loaded.load(); assert.equal(loaded.key(), 'private-test-value'); await loaded.save({ clearKey: true }); assert.equal(loaded.key(), '');
+});
+test('RunningHub keys migrate, switch and persist independently', async t => {
+  const root = await fs.mkdtemp(path.join(os.tmpdir(), 'bdmodder-runninghub-'));
+  t.after(() => fs.rm(root, { recursive: true, force: true }));
+  const file = path.join(root, 'settings.json');
+  const original = 'legacy-test-api-key', second = 'second-test-api-key';
+  const encryptedKey = (await testSecrets.encryptStringAsync(original)).toString('base64');
+  await fs.writeFile(file, JSON.stringify({ encryptedKey, cloudAddress: 'https://www.runninghub.cn/' }));
+
+  const settings = new Settings(root, testSecrets);
+  const migrated = await settings.load();
+  const legacy = migrated.runningHubKeys[0];
+  assert.deepEqual(legacy, { id: migrated.activeRunningHubKeyId, name: '原有密钥' });
+  assert.equal(settings.key(), original);
+
+  const added = await settings.save({ addRunningHubKey: { name: '项目 A', apiKey: second } });
+  const newId = added.activeRunningHubKeyId;
+  assert.deepEqual(added.runningHubKeys, [legacy, { id: newId, name: '项目 A' }]);
+  assert.equal(settings.key(), second);
+  const disk = await fs.readFile(file, 'utf8');
+  assert.equal(disk.includes(original) || disk.includes(second), false);
+  assert.equal('encryptedKey' in JSON.parse(disk), false);
+  assert.equal(JSON.parse(disk).runningHubKeys[0].encryptedKey, encryptedKey);
+
+  const reloaded = new Settings(root, testSecrets);
+  assert.deepEqual(await reloaded.load(), added);
+  assert.equal(reloaded.key(), second);
+  await assert.rejects(reloaded.save({ activeRunningHubKeyId: 'missing' }), /未找到/);
+  assert.equal(reloaded.key(), second);
+
+  await fs.mkdir(file + '.tmp');
+  await assert.rejects(reloaded.save({ activeRunningHubKeyId: legacy.id }));
+  assert.equal(reloaded.key(), second);
+  assert.equal(await fs.readFile(file, 'utf8'), disk);
+  await fs.rmdir(file + '.tmp');
+
+  await reloaded.save({ activeRunningHubKeyId: legacy.id });
+  assert.equal(reloaded.key(), original);
+  const disabled = await reloaded.save({ removeRunningHubKeyId: legacy.id });
+  assert.deepEqual(disabled.runningHubKeys, [{ id: newId, name: '项目 A' }]);
+  assert.equal(disabled.activeRunningHubKeyId, null);
+  assert.equal(disabled.hasKey, false);
+  const restored = new Settings(root, testSecrets);
+  assert.deepEqual(await restored.load(), disabled);
+  await restored.save({ activeRunningHubKeyId: newId });
+  assert.equal(restored.key(), second);
 });
 function profile() { return normalizeProfile({ '1': { class_type: 'LoadImage', inputs: { image: 'old.png' } }, '2': { class_type: 'LoadImageMask', inputs: { image: 'mask.png', channel: 'alpha' } }, '3': { class_type: 'CLIPTextEncode', inputs: { text: 'old' } }, '4': { class_type: 'SaveImage', inputs: { images: ['1', 0] } } }); }
 test('workflow mapping preserves graph links, binds prompts, and uses independent red mask', () => {

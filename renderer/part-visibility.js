@@ -23,11 +23,19 @@ export class PartContextMenu {
     addEventListener('resize', () => this.close()); document.addEventListener('scroll', event => { if (!this.element.contains(event.target)) this.close(); }, true);
   }
   close(focus = false) { this.element.hidden = true; if (focus && this.origin?.isConnected) this.origin.focus(); }
-  show(event, origin, { count, canHide, canShow, shortcut, onHide, onShow }) {
+  show(event, origin, { count, canHide, canShow, canReplace, canExport, canIsolate, selectionOnly, shortcut, onHide, onShow, onReplace, onExport, onToggleSelectionOnly }) {
     event.preventDefault(); this.origin = origin; this.element.replaceChildren();
-    for (const [label, key, disabled, run] of [['隐藏选中部件', shortcut, !canHide, onHide], ['显示隐藏部件', '', !canShow, onShow]]) {
+    const suffix = count > 1 ? `（${count}）` : '';
+    const actions = [
+      ['隐藏选中部件' + suffix, shortcut, !canHide, onHide],
+      ['显示隐藏部件' + suffix, '', !canShow, onShow],
+      [count > 1 ? '替换组合 PNG' : '替换 PNG', '', !canReplace, onReplace],
+      [count > 1 ? '导出组合 PNG' : '导出 PNG', '', !canExport, onExport],
+      [selectionOnly ? '恢复完整预览' : '只看选中部件' + suffix, '', !selectionOnly && !canIsolate, onToggleSelectionOnly]
+    ];
+    for (const [label, key, disabled, run] of actions) {
       const button = document.createElement('button'); button.type = 'button'; button.setAttribute('role', 'menuitem'); button.disabled = disabled;
-      const text = document.createElement('span'); text.textContent = label + (count > 1 ? `（${count}）` : ''); button.append(text);
+      const text = document.createElement('span'); text.textContent = label; button.append(text);
       if (key) { const hint = document.createElement('kbd'); hint.textContent = key; button.append(hint); }
       button.onclick = () => { this.close(); run(); }; this.element.append(button);
     }

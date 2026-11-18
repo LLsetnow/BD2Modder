@@ -9,7 +9,7 @@ const categories = [
 ];
 export class SettingsPage {
   constructor(options) {
-    this.options = options; this.element = document.querySelector('#settings-page'); this.category = 'general'; this.shortcuts = { ...DEFAULT_SHORTCUTS }; this.serviceDirty = false;
+    this.options = options; this.element = document.querySelector('#settings-page'); this.category = 'general'; this.shortcuts = { ...DEFAULT_SHORTCUTS }; this.serviceDirty = false; this.serviceBusy = false;
     this.element.innerHTML = `
       <div class="settings-shell">
         <div class="settings-heading"><div><span class="eyebrow">PREFERENCES</span><h1>设置</h1></div><button type="button" class="button subtle" id="settings-back">← 返回工作台</button></div>
@@ -34,8 +34,25 @@ export class SettingsPage {
             </section>
             <section id="settings-pane-ai" data-settings-pane="ai" role="tabpanel" aria-labelledby="settings-tab-ai" hidden>
               <div class="settings-card"><h3>绘图服务</h3>
-                <label class="settings-row" for="settings-provider"><span><strong>默认服务</strong><small>用于检查器中的局部重绘。</small></span><select class="field-select" id="settings-provider"><option value="ComfyUI">ComfyUI</option><option value="RunningHub">RunningHub</option></select></label>
-                <div class="settings-form"><label class="field-label" for="settings-comfy-address">ComfyUI 地址</label><input class="settings-input" id="settings-comfy-address" type="url" spellcheck="false" autocomplete="off"><label class="field-label" for="settings-cloud-address">RunningHub 地址</label><input class="settings-input" id="settings-cloud-address" type="url" spellcheck="false" autocomplete="off"><label class="field-label" for="settings-cloud-key">RunningHub API Key</label><input class="settings-input" id="settings-cloud-key" type="password" autocomplete="off"><label class="dialog-check"><input id="settings-clear-key" type="checkbox">清除已保存的 Key</label><p class="help-text" id="settings-key-note">密钥通过系统加密保存，不会写入 MOD 或导出包。</p><div class="settings-actions"><button type="button" class="button" id="settings-save-service">保存连接</button><button type="button" class="button primary" id="settings-test-service">保存并测试连接</button></div><p class="settings-feedback" id="settings-service-feedback" role="status"></p></div>
+                <label class="settings-row" for="settings-provider"><span><strong>默认服务</strong><small>用于自定义图集工作流。</small></span><select class="field-select" id="settings-provider"><option value="ComfyUI">ComfyUI</option><option value="RunningHub">RunningHub</option></select></label>
+                <div class="settings-form" id="settings-connection-form">
+                  <label class="field-label" for="settings-comfy-address">ComfyUI 地址</label><input class="settings-input" id="settings-comfy-address" type="url" spellcheck="false" autocomplete="off">
+                  <label class="field-label" for="settings-cloud-address">RunningHub 地址</label><input class="settings-input" id="settings-cloud-address" type="url" spellcheck="false" autocomplete="off">
+                  <div class="settings-actions"><button type="button" class="button" id="settings-save-service">保存连接</button><button type="button" class="button primary" id="settings-test-service">保存并测试连接</button></div>
+                  <p class="settings-feedback" id="settings-service-feedback" role="status"></p>
+                </div>
+              </div>
+              <div class="settings-card" ${this.options.native ? '' : 'hidden'}>
+                <h3>RunningHub API Key</h3>
+                <div class="settings-form">
+                  <label class="field-label" for="settings-active-cloud-key">启用密钥</label>
+                  <div class="settings-key-picker"><select class="settings-input" id="settings-active-cloud-key"></select><button type="button" class="button" id="settings-remove-cloud-key">删除当前密钥</button></div>
+                  <label class="field-label" for="settings-cloud-key-name">密钥名称</label><input class="settings-input" id="settings-cloud-key-name" type="text" placeholder="可选，例如个人工作区" autocomplete="off">
+                  <label class="field-label" for="settings-cloud-key">新的 API Key</label><input class="settings-input" id="settings-cloud-key" type="password" autocomplete="off" spellcheck="false">
+                  <div class="settings-actions"><button type="button" class="button primary" id="settings-add-cloud-key">添加并启用</button></div>
+                  <p class="help-text" id="settings-key-note"></p>
+                  <p class="settings-feedback" id="settings-key-feedback" role="status"></p>
+                </div>
               </div>
               <div class="settings-card"><h3>重绘工作流</h3><div class="settings-row"><span><strong id="settings-workflow-name">尚未配置工作流</strong><small>导入 API 工作流，设置图集、遮罩和提示词映射。</small></span><button type="button" class="button" id="settings-workflow">导入 / 配置</button></div></div>
             </section>
@@ -60,21 +77,39 @@ export class SettingsPage {
     this.element.querySelector('#reset-preferences').onclick = () => this.options.onResetPreferences();
     this.element.querySelectorAll('[data-shortcut]').forEach(button => button.onclick = () => this.capture(button.dataset.shortcut));
     this.element.querySelector('#reset-shortcuts').onclick = () => this.run(async () => this.setShortcuts(await this.options.onShortcuts({ ...DEFAULT_SHORTCUTS })), '#shortcut-feedback');
-    this.element.querySelectorAll('.settings-form input').forEach(input => input.addEventListener('input', () => { this.serviceDirty = true; this.feedback('#settings-service-feedback', '连接有未保存的更改。'); }));
+    this.connectionFields = [...this.element.querySelectorAll('#settings-connection-form input')];
+    this.connectionFields.forEach(input => input.addEventListener('input', () => { this.serviceDirty = true; this.feedback('#settings-service-feedback', '连接有未保存的更改。'); }));
     this.element.querySelector('#settings-save-service').onclick = () => this.saveService(false);
     this.element.querySelector('#settings-test-service').onclick = () => this.saveService(true);
+    this.element.querySelector('#settings-active-cloud-key').onchange = event => {
+      const id = event.target.value || null;
+      return this.saveKeyChange({ activeRunningHubKeyId: id }, id ? '已切换启用密钥。' : '已停用 RunningHub 密钥。');
+    };
+    this.element.querySelector('#settings-cloud-key').oninput = () => this.updateServiceControls();
+    this.element.querySelector('#settings-add-cloud-key').onclick = () => this.saveKeyChange({ addRunningHubKey: {
+      name: this.element.querySelector('#settings-cloud-key-name').value,
+      apiKey: this.element.querySelector('#settings-cloud-key').value
+    } }, '密钥已加密保存并启用。');
+    this.element.querySelector('#settings-remove-cloud-key').onclick = () => {
+      const entry = this.service?.runningHubKeys?.find(item => item.id === this.service.activeRunningHubKeyId);
+      if (entry && window.confirm(`删除密钥「${entry.name}」？`)) return this.saveKeyChange({ removeRunningHubKeyId: entry.id }, '已删除密钥。');
+    };
     this.element.querySelector('#settings-workflow').onclick = () => this.options.onWorkflow();
     this.element.querySelectorAll('[data-project-setting]').forEach(button => button.onclick = () => this.options.onProjectAction(button.dataset.projectSetting));
     document.addEventListener('keydown', event => this.keydown(event), true);
     this.setShortcuts(this.shortcuts);
-    if (!this.options.native) { this.element.querySelector('#settings-cloud-key').disabled = true; this.element.querySelector('#settings-cloud-key').placeholder = '请在桌面版中设置密钥'; this.element.querySelector('#settings-clear-key').disabled = true; this.element.querySelector('#settings-test-service').disabled = true; this.element.querySelector('#settings-save-service').textContent = '保存预览设置'; this.element.querySelector('#settings-key-note').textContent = '当前为浏览器设计预览。实际服务和密钥请在桌面版中设置。'; }
+    if (!this.options.native) this.element.querySelector('#settings-save-service').textContent = '保存预览设置';
+    this.renderKeyPicker();
   }
   get open() { return !this.element.hidden; }
   async show(category = this.category) {
     this.select(category); this.options.onPause?.(); await this.options.onVisibility?.(true); this.element.hidden = false; document.documentElement.dataset.screen = 'settings'; document.querySelector('#settings-open')?.setAttribute('aria-expanded', 'true'); this.tabs.find(button => button.dataset.settingsTab === this.category)?.focus();
   }
   async hide() {
-    this.cancelCapture(); await this.options.onVisibility?.(false); this.element.hidden = true; delete document.documentElement.dataset.screen; document.querySelector('#settings-open')?.setAttribute('aria-expanded', 'false'); document.querySelector('#settings-open')?.focus(); this.options.onResume?.();
+    this.cancelCapture(); await this.options.onVisibility?.(false);
+    this.element.querySelector('#settings-cloud-key').value = '';
+    this.updateServiceControls();
+    this.element.hidden = true; delete document.documentElement.dataset.screen; document.querySelector('#settings-open')?.setAttribute('aria-expanded', 'false'); document.querySelector('#settings-open')?.focus(); this.options.onResume?.();
   }
   select(category) {
     const match = categories.find(c => c[0] === category) || categories[0]; this.category = match[0]; this.cancelCapture();
@@ -86,7 +121,8 @@ export class SettingsPage {
     if (preferences) { for (const [id, key] of [['theme-select', 'theme'], ['density-select', 'density'], ['layout-select', 'layout'], ['settings-provider', 'provider']]) this.element.querySelector('#' + id).value = preferences[key] || (key === 'provider' ? 'ComfyUI' : ''); this.element.querySelector('#grid-toggle').checked = Boolean(preferences.grid); }
     if (service) {
       this.service = service; if (service.shortcuts) this.setShortcuts(service.shortcuts);
-      if (!this.serviceDirty) { this.element.querySelector('#settings-comfy-address').value = service.address || 'http://127.0.0.1:8188/'; this.element.querySelector('#settings-cloud-address').value = service.cloudAddress || 'https://www.runninghub.cn/'; this.element.querySelector('#settings-cloud-key').value = ''; this.element.querySelector('#settings-clear-key').checked = false; if (this.options.native) this.element.querySelector('#settings-cloud-key').placeholder = service.hasKey ? '已加密保存，留空保留' : '填写 API Key'; }
+      if (!this.serviceDirty) { this.element.querySelector('#settings-comfy-address').value = service.address || 'http://127.0.0.1:8188/'; this.element.querySelector('#settings-cloud-address').value = service.cloudAddress || 'https://www.runninghub.ai/'; }
+      this.renderKeyPicker();
       this.element.querySelector('#settings-workflow-name').textContent = service.profile?.name || '尚未配置工作流';
     }
     if (project !== undefined) {
@@ -108,13 +144,57 @@ export class SettingsPage {
   }
   feedback(selector, message, error = false) { const target = this.element.querySelector(selector); target.textContent = message; target.dataset.error = String(error); }
   async run(fn, selector) { try { return await fn(); } catch (error) { this.feedback(selector, error.message, true); return null; } }
-  async saveService(test) {
-    const buttons = ['#settings-save-service', '#settings-test-service'].map(id => this.element.querySelector(id)); buttons.forEach(button => button.disabled = true);
+  updateServiceControls() {
+    const busy = this.serviceBusy, canEncrypt = this.options.native && this.service?.encryptionAvailable;
+    const keyInput = this.element.querySelector('#settings-cloud-key');
+    for (const input of this.connectionFields) input.disabled = busy;
+    this.element.querySelector('#settings-save-service').disabled = busy;
+    this.element.querySelector('#settings-test-service').disabled = busy || !this.options.native;
+    this.element.querySelector('#settings-active-cloud-key').disabled = busy || !this.service?.runningHubKeys?.length;
+    this.element.querySelector('#settings-remove-cloud-key').disabled = busy || !this.service?.activeRunningHubKeyId;
+    this.element.querySelector('#settings-cloud-key-name').disabled = keyInput.disabled = busy || !canEncrypt;
+    this.element.querySelector('#settings-add-cloud-key').disabled = keyInput.disabled || !keyInput.value.trim();
+  }
+  renderKeyPicker() {
+    const select = this.element.querySelector('#settings-active-cloud-key');
+    const keys = this.service?.runningHubKeys || [];
+    select.replaceChildren(new Option(keys.length ? '未启用密钥' : '尚未添加密钥', ''), ...keys.map(({ id, name }) => new Option(name, id)));
+    select.value = this.service?.activeRunningHubKeyId || '';
+    const note = this.element.querySelector('#settings-key-note');
+    note.textContent = this.service && !this.service.encryptionAvailable ? '当前无法使用系统密钥加密。'
+      : this.service?.activeRunningHubKeyId && !this.service.hasKey ? '无法解密当前密钥，请选择另一条或重新添加。'
+      : '密钥使用系统加密保存。新任务使用当前启用的密钥。';
+    this.updateServiceControls();
+  }
+  async runServiceAction(action, feedback) {
+    if (this.serviceBusy) return;
+    this.serviceBusy = true;
+    this.updateServiceControls();
     try {
-      const patch = { address: this.element.querySelector('#settings-comfy-address').value, cloudAddress: this.element.querySelector('#settings-cloud-address').value, apiKey: this.element.querySelector('#settings-cloud-key').value, clearKey: this.element.querySelector('#settings-clear-key').checked };
-      const result = await this.options.onSaveService(patch); this.serviceDirty = false; this.sync({ service: result }); this.feedback('#settings-service-feedback', test ? '正在测试连接…' : '连接配置已保存。');
-      if (test) this.feedback('#settings-service-feedback', await this.options.onTestService(this.element.querySelector('#settings-provider').value));
-    } catch (error) { this.feedback('#settings-service-feedback', error.message, true); }
-    finally { buttons.forEach(button => button.disabled = !this.options.native && button.id === 'settings-test-service'); }
+      await this.run(action, feedback);
+    } finally {
+      this.serviceBusy = false;
+      this.renderKeyPicker();
+    }
+  }
+  saveKeyChange(patch, message) {
+    return this.runServiceAction(async () => {
+      const result = await this.options.onSaveService(patch);
+      if (patch.addRunningHubKey) {
+        this.element.querySelector('#settings-cloud-key').value = '';
+        this.element.querySelector('#settings-cloud-key-name').value = '';
+      }
+      this.sync({ service: result });
+      this.feedback('#settings-key-feedback', message);
+    }, '#settings-key-feedback');
+  }
+  saveService(test) {
+    return this.runServiceAction(async () => {
+      const patch = { address: this.element.querySelector('#settings-comfy-address').value, cloudAddress: this.element.querySelector('#settings-cloud-address').value };
+      const provider = this.element.querySelector('#settings-provider').value;
+      const result = await this.options.onSaveService(patch); this.serviceDirty = false; this.sync({ service: result });
+      this.feedback('#settings-service-feedback', test ? '正在测试连接…' : '连接配置已保存。');
+      if (test) this.feedback('#settings-service-feedback', await this.options.onTestService(provider));
+    }, '#settings-service-feedback');
   }
 }

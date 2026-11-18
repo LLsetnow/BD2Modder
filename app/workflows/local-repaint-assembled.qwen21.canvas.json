@@ -1,0 +1,1453 @@
+{
+  "id": "d0acf635-c36b-47b3-889b-1bc0a59929f5",
+  "revision": 0,
+  "last_node_id": 28,
+  "last_link_id": 40,
+  "nodes": [
+    {
+      "id": 1,
+      "type": "LoadImage",
+      "pos": [
+        45.18341533566369,
+        -17.365082463731863
+      ],
+      "size": [
+        340,
+        314
+      ],
+      "flags": {},
+      "order": 0,
+      "mode": 0,
+      "inputs": [
+        {
+          "label": "image",
+          "name": "image",
+          "type": "COMBO",
+          "widget": {
+            "name": "image"
+          },
+          "link": null
+        },
+        {
+          "label": "upload",
+          "name": "upload",
+          "type": "IMAGEUPLOAD",
+          "widget": {
+            "name": "upload"
+          },
+          "link": null
+        }
+      ],
+      "outputs": [
+        {
+          "label": "IMAGE",
+          "name": "IMAGE",
+          "type": "IMAGE",
+          "links": [
+            28
+          ]
+        },
+        {
+          "label": "MASK",
+          "name": "MASK",
+          "type": "MASK",
+          "links": [
+            23
+          ]
+        }
+      ],
+      "title": "编辑目标 · 组装部件",
+      "properties": {
+        "Node name for S&R": "LoadImage",
+        "widget_ue_connectable": {}
+      },
+      "widgets_values": [
+        "d84d4008f170144b36c3798dd8940dce69b5440f722e8eb8f10528d5b6e73fec.png",
+        "image"
+      ],
+      "widgets_values_named": {
+        "image": "d84d4008f170144b36c3798dd8940dce69b5440f722e8eb8f10528d5b6e73fec.png",
+        "upload": "image"
+      }
+    },
+    {
+      "id": 4,
+      "type": "UNETLoader",
+      "pos": [
+        40,
+        355
+      ],
+      "size": [
+        365,
+        101
+      ],
+      "flags": {},
+      "order": 1,
+      "mode": 0,
+      "inputs": [
+        {
+          "label": "unet_name",
+          "name": "unet_name",
+          "type": "COMBO",
+          "widget": {
+            "name": "unet_name"
+          },
+          "link": null
+        },
+        {
+          "label": "weight_dtype",
+          "name": "weight_dtype",
+          "type": "COMBO",
+          "widget": {
+            "name": "weight_dtype"
+          },
+          "link": null
+        }
+      ],
+      "outputs": [
+        {
+          "label": "MODEL",
+          "name": "MODEL",
+          "type": "MODEL",
+          "links": [
+            4
+          ]
+        }
+      ],
+      "title": "Qwen 2.1 · RedQW UNLOCKED V2 INT8",
+      "properties": {
+        "Node name for S&R": "UNETLoader",
+        "widget_ue_connectable": {}
+      },
+      "widgets_values": [
+        "redqw21UNLOCKEDV2TI2I_redqw21UNLOCKEDV2_int8.safetensors",
+        "default"
+      ],
+      "widgets_values_named": {
+        "unet_name": "redqw21UNLOCKEDV2TI2I_redqw21UNLOCKEDV2_int8.safetensors",
+        "weight_dtype": "default"
+      }
+    },
+    {
+      "id": 5,
+      "type": "CLIPLoader",
+      "pos": [
+        40,
+        515
+      ],
+      "size": [
+        365,
+        128
+      ],
+      "flags": {},
+      "order": 2,
+      "mode": 0,
+      "inputs": [
+        {
+          "label": "clip_name",
+          "name": "clip_name",
+          "type": "COMBO",
+          "widget": {
+            "name": "clip_name"
+          },
+          "link": null
+        },
+        {
+          "label": "type",
+          "name": "type",
+          "type": "COMBO",
+          "widget": {
+            "name": "type"
+          },
+          "link": null
+        },
+        {
+          "label": "device",
+          "name": "device",
+          "shape": 7,
+          "type": "COMBO",
+          "widget": {
+            "name": "device"
+          },
+          "link": null
+        }
+      ],
+      "outputs": [
+        {
+          "label": "CLIP",
+          "name": "CLIP",
+          "type": "CLIP",
+          "links": [
+            1
+          ]
+        }
+      ],
+      "title": "Qwen 2.1 · 视觉文本编码",
+      "properties": {
+        "Node name for S&R": "CLIPLoader",
+        "widget_ue_connectable": {}
+      },
+      "widgets_values": [
+        "qwen3vl_8b_int8_convrot.safetensors",
+        "qwen_image",
+        "default"
+      ],
+      "widgets_values_named": {
+        "clip_name": "qwen3vl_8b_int8_convrot.safetensors",
+        "type": "qwen_image",
+        "device": "default"
+      }
+    },
+    {
+      "id": 6,
+      "type": "VAELoader",
+      "pos": [
+        40,
+        695
+      ],
+      "size": [
+        365,
+        88
+      ],
+      "flags": {},
+      "order": 3,
+      "mode": 0,
+      "inputs": [
+        {
+          "label": "vae_name",
+          "name": "vae_name",
+          "type": "COMBO",
+          "widget": {
+            "name": "vae_name"
+          },
+          "link": null
+        }
+      ],
+      "outputs": [
+        {
+          "label": "VAE",
+          "name": "VAE",
+          "type": "VAE",
+          "links": [
+            3,
+            9,
+            40
+          ]
+        }
+      ],
+      "title": "Qwen 2.1 · VAE",
+      "properties": {
+        "Node name for S&R": "VAELoader",
+        "widget_ue_connectable": {}
+      },
+      "widgets_values": [
+        "qwen_image_2.1_vae_bf16.safetensors"
+      ],
+      "widgets_values_named": {
+        "vae_name": "qwen_image_2.1_vae_bf16.safetensors"
+      }
+    },
+    {
+      "id": 7,
+      "type": "TextEncodeQwenImage21",
+      "pos": [
+        1056.1423572114431,
+        73.75860981795051
+      ],
+      "size": [
+        460,
+        426
+      ],
+      "flags": {},
+      "order": 10,
+      "mode": 0,
+      "inputs": [
+        {
+          "label": "clip",
+          "name": "clip",
+          "type": "CLIP",
+          "link": 1
+        },
+        {
+          "label": "参考图 1 (Image-1)",
+          "name": "images.image_1",
+          "shape": 7,
+          "type": "IMAGE",
+          "link": 30
+        },
+        {
+          "label": "参考图 2 (Image-2)",
+          "name": "images.image_2",
+          "shape": 7,
+          "type": "IMAGE",
+          "link": null
+        },
+        {
+          "label": "参考图 3 (Image-3)",
+          "name": "images.image_3",
+          "shape": 7,
+          "type": "IMAGE",
+          "link": null
+        },
+        {
+          "label": "vae",
+          "name": "vae",
+          "shape": 7,
+          "type": "VAE",
+          "link": 3
+        },
+        {
+          "label": "prompt",
+          "name": "prompt",
+          "type": "STRING",
+          "widget": {
+            "name": "prompt"
+          },
+          "link": null
+        },
+        {
+          "label": "negative_prompt",
+          "name": "negative_prompt",
+          "type": "STRING",
+          "widget": {
+            "name": "negative_prompt"
+          },
+          "link": null
+        },
+        {
+          "label": "resolution",
+          "name": "resolution",
+          "type": "INT",
+          "widget": {
+            "name": "resolution"
+          },
+          "link": 14
+        }
+      ],
+      "outputs": [
+        {
+          "label": "positive",
+          "name": "positive",
+          "type": "CONDITIONING",
+          "links": [
+            5
+          ]
+        },
+        {
+          "label": "negative",
+          "name": "negative",
+          "type": "CONDITIONING",
+          "links": [
+            6
+          ]
+        },
+        {
+          "label": "latent",
+          "name": "latent",
+          "type": "LATENT",
+          "links": null
+        }
+      ],
+      "title": "第一轮 · 原位置重绘",
+      "properties": {
+        "Node name for S&R": "TextEncodeQwenImage21",
+        "widget_ue_connectable": {
+          "resolution": true
+        }
+      },
+      "widgets_values": [
+        "Use the provided cropped input image as the source. Apply the requested edit to the subject shown in the crop. Preserve the crop framing, relative placement, folds, openings, and surrounding context. Keep the background unchanged. Do not shift, resize, rearrange, or extend texture regions beyond the canvas.",
+        "unrequested background changes, unrequested silhouette changes, moved or resized texture regions, rearranged UV islands, extra elements, displaced seams, text, watermark",
+        0
+      ],
+      "widgets_values_named": {
+        "prompt": "Use the provided cropped input image as the source. Apply the requested edit to the subject shown in the crop. Preserve the crop framing, relative placement, folds, openings, and surrounding context. Keep the background unchanged. Do not shift, resize, rearrange, or extend texture regions beyond the canvas.",
+        "negative_prompt": "unrequested background changes, unrequested silhouette changes, moved or resized texture regions, rearranged UV islands, extra elements, displaced seams, text, watermark",
+        "resolution": 0
+      }
+    },
+    {
+      "id": 8,
+      "type": "KSampler",
+      "pos": [
+        1560.6774638768543,
+        91.89776099553474
+      ],
+      "size": [
+        294.6863817989945,
+        262
+      ],
+      "flags": {},
+      "order": 11,
+      "mode": 0,
+      "inputs": [
+        {
+          "label": "model",
+          "name": "model",
+          "type": "MODEL",
+          "link": 4
+        },
+        {
+          "label": "positive",
+          "name": "positive",
+          "type": "CONDITIONING",
+          "link": 5
+        },
+        {
+          "label": "negative",
+          "name": "negative",
+          "type": "CONDITIONING",
+          "link": 6
+        },
+        {
+          "label": "latent_image",
+          "name": "latent_image",
+          "type": "LATENT",
+          "link": 38
+        },
+        {
+          "label": "seed",
+          "name": "seed",
+          "type": "INT",
+          "widget": {
+            "name": "seed"
+          },
+          "link": null
+        },
+        {
+          "label": "steps",
+          "name": "steps",
+          "type": "INT",
+          "widget": {
+            "name": "steps"
+          },
+          "link": null
+        },
+        {
+          "label": "cfg",
+          "name": "cfg",
+          "type": "FLOAT",
+          "widget": {
+            "name": "cfg"
+          },
+          "link": null
+        },
+        {
+          "label": "sampler_name",
+          "name": "sampler_name",
+          "type": "COMBO",
+          "widget": {
+            "name": "sampler_name"
+          },
+          "link": null
+        },
+        {
+          "label": "scheduler",
+          "name": "scheduler",
+          "type": "COMBO",
+          "widget": {
+            "name": "scheduler"
+          },
+          "link": null
+        },
+        {
+          "label": "denoise",
+          "name": "denoise",
+          "type": "FLOAT",
+          "widget": {
+            "name": "denoise"
+          },
+          "link": null
+        }
+      ],
+      "outputs": [
+        {
+          "label": "LATENT",
+          "name": "LATENT",
+          "type": "LATENT",
+          "links": [
+            8
+          ]
+        }
+      ],
+      "title": "Qwen 2.1 · 采样",
+      "properties": {
+        "Node name for S&R": "KSampler",
+        "widget_ue_connectable": {}
+      },
+      "widgets_values": [
+        793,
+        "fixed",
+        8,
+        4,
+        "euler",
+        "normal",
+        1
+      ],
+      "widgets_values_named": {
+        "seed": 793,
+        "control_after_generate": "fixed",
+        "steps": 8,
+        "cfg": 4,
+        "sampler_name": "euler",
+        "scheduler": "normal",
+        "denoise": 1
+      }
+    },
+    {
+      "id": 9,
+      "type": "VAEDecode",
+      "pos": [
+        1890.6774638768543,
+        91.89776099553474
+      ],
+      "size": [
+        220,
+        75
+      ],
+      "flags": {},
+      "order": 12,
+      "mode": 0,
+      "inputs": [
+        {
+          "label": "samples",
+          "name": "samples",
+          "type": "LATENT",
+          "link": 8
+        },
+        {
+          "label": "vae",
+          "name": "vae",
+          "type": "VAE",
+          "link": 9
+        }
+      ],
+      "outputs": [
+        {
+          "label": "IMAGE",
+          "name": "IMAGE",
+          "type": "IMAGE",
+          "links": [
+            34
+          ]
+        }
+      ],
+      "title": "解码工作图",
+      "properties": {
+        "Node name for S&R": "VAEDecode",
+        "widget_ue_connectable": {}
+      }
+    },
+    {
+      "id": 10,
+      "type": "SaveImage",
+      "pos": [
+        2472.2819333285065,
+        98.127672068638
+      ],
+      "size": [
+        325,
+        290
+      ],
+      "flags": {},
+      "order": 14,
+      "mode": 0,
+      "inputs": [
+        {
+          "label": "images",
+          "name": "images",
+          "type": "IMAGE",
+          "link": 35
+        },
+        {
+          "label": "filename_prefix",
+          "name": "filename_prefix",
+          "type": "STRING",
+          "widget": {
+            "name": "filename_prefix"
+          },
+          "link": null
+        }
+      ],
+      "outputs": [
+        {
+          "label": "image_urls",
+          "name": "image_urls",
+          "type": "STRING",
+          "links": null
+        },
+        {
+          "label": "images",
+          "name": "images",
+          "type": "IMAGE",
+          "links": null
+        }
+      ],
+      "title": "输出 · 组装部件 RGB",
+      "properties": {
+        "Node name for S&R": "SaveImage",
+        "widget_ue_connectable": {}
+      },
+      "widgets_values": [
+        "BDModder/part-edit/assembled"
+      ],
+      "widgets_values_named": {
+        "filename_prefix": "BDModder/part-edit/assembled"
+      }
+    },
+    {
+      "id": 18,
+      "type": "GetImageSize",
+      "pos": [
+        1073.1990848663352,
+        617.9575112144955
+      ],
+      "size": [
+        210,
+        124
+      ],
+      "flags": {},
+      "order": 8,
+      "mode": 0,
+      "inputs": [
+        {
+          "label": "image",
+          "name": "image",
+          "type": "IMAGE",
+          "link": 31
+        }
+      ],
+      "outputs": [
+        {
+          "label": "width",
+          "name": "width",
+          "type": "INT",
+          "links": [
+            12
+          ]
+        },
+        {
+          "label": "height",
+          "name": "height",
+          "type": "INT",
+          "links": [
+            13
+          ]
+        },
+        {
+          "label": "batch_size",
+          "name": "batch_size",
+          "type": "INT",
+          "links": null
+        }
+      ],
+      "title": "读取组装图宽高 · Image 1",
+      "properties": {
+        "Node name for S&R": "GetImageSize",
+        "widget_ue_connectable": {}
+      }
+    },
+    {
+      "id": 19,
+      "type": "ComfyMathExpression",
+      "pos": [
+        1309.4467114756094,
+        586.2172546012813
+      ],
+      "size": [
+        280.0454620361328,
+        180
+      ],
+      "flags": {},
+      "order": 9,
+      "mode": 0,
+      "inputs": [
+        {
+          "label": "values.a",
+          "name": "values.a",
+          "type": "FLOAT,INT,BOOLEAN",
+          "link": 12
+        },
+        {
+          "label": "values.b",
+          "name": "values.b",
+          "shape": 7,
+          "type": "FLOAT,INT,BOOLEAN",
+          "link": 13
+        },
+        {
+          "label": "values.c",
+          "name": "values.c",
+          "shape": 7,
+          "type": "FLOAT,INT,BOOLEAN",
+          "link": null
+        },
+        {
+          "label": "expression",
+          "name": "expression",
+          "type": "STRING",
+          "widget": {
+            "name": "expression"
+          },
+          "link": null
+        }
+      ],
+      "outputs": [
+        {
+          "label": "FLOAT",
+          "name": "FLOAT",
+          "type": "FLOAT",
+          "links": null
+        },
+        {
+          "label": "INT",
+          "name": "INT",
+          "type": "INT",
+          "links": [
+            14
+          ]
+        },
+        {
+          "label": "BOOL",
+          "name": "BOOL",
+          "type": "BOOLEAN",
+          "links": null
+        }
+      ],
+      "title": "计算 resolution · round(sqrt(宽 × 高))",
+      "properties": {
+        "Node name for S&R": "ComfyMathExpression",
+        "widget_ue_connectable": {}
+      },
+      "widgets_values": [
+        "round(sqrt(a * b))"
+      ],
+      "widgets_values_named": {
+        "expression": "round(sqrt(a * b))"
+      }
+    },
+    {
+      "id": 20,
+      "type": "MarkdownNote",
+      "pos": [
+        1889.1265106270027,
+        500.46458487258417
+      ],
+      "size": [
+        615,
+        270
+      ],
+      "flags": {},
+      "order": 4,
+      "mode": 0,
+      "inputs": [],
+      "outputs": [],
+      "properties": {
+        "widget_ue_connectable": {}
+      },
+      "widgets_values": [
+        "### 第一轮 · Alpha 选区裁切与 UV 回写\n\n- **输入图** round-1-input.png。BD Modder 将选中网格的可见部分写入画布，并用 Alpha 表示选区；选区外为透明。\n- **选区处理** ComfyUI 从 Load Image 的 Alpha 蒙版生成选区，Inpaint Crop Improved 裁切并建立 Stitcher。Text Encode 接收裁切图用于视觉条件；VAE Encode 对同一张裁切原图编码，输出接入 KSampler。\n- **蒙版与回贴** Inpaint Stitch Improved 将采样结果按原始裁切位置回贴；工作流不接收单独的 round-1-mask.png，也不增加第一轮画布边缘。\n- **分辨率与 UV** 分辨率从裁切图宽高计算。回写按原工作图 UV 取样，画布尺寸和像素坐标保持一致。"
+      ],
+      "widgets_values_named": {
+        "text": "### 第一轮 · Alpha 选区裁切与 UV 回写\n\n- **输入图** round-1-input.png。BD Modder 将选中网格的可见部分写入画布，并用 Alpha 表示选区；选区外为透明。\n- **选区处理** ComfyUI 从 Load Image 的 Alpha 蒙版生成选区，Inpaint Crop Improved 裁切并建立 Stitcher。Text Encode 接收裁切图用于视觉条件；VAE Encode 对同一张裁切原图编码，输出接入 KSampler。\n- **蒙版与回贴** Inpaint Stitch Improved 将采样结果按原始裁切位置回贴；工作流不接收单独的 round-1-mask.png，也不增加第一轮画布边缘。\n- **分辨率与 UV** 分辨率从裁切图宽高计算。回写按原工作图 UV 取样，画布尺寸和像素坐标保持一致。"
+      },
+      "color": "#263947",
+      "bgcolor": "#202a35"
+    },
+    {
+      "id": 23,
+      "type": "InvertMask",
+      "pos": [
+        410.7927075046825,
+        3.055682951053969
+      ],
+      "size": [
+        140,
+        26
+      ],
+      "flags": {},
+      "order": 6,
+      "mode": 0,
+      "inputs": [
+        {
+          "label": "mask",
+          "name": "mask",
+          "type": "MASK",
+          "link": 23
+        }
+      ],
+      "outputs": [
+        {
+          "label": "MASK",
+          "name": "MASK",
+          "type": "MASK",
+          "links": [
+            29
+          ]
+        }
+      ],
+      "properties": {
+        "widget_ue_connectable": {},
+        "Node name for S&R": "InvertMask"
+      }
+    },
+    {
+      "id": 26,
+      "type": "InpaintCropImproved",
+      "pos": [
+        604.0356593992294,
+        -15.428467791083792
+      ],
+      "size": [
+        357.45001220703125,
+        650
+      ],
+      "flags": {},
+      "order": 7,
+      "mode": 0,
+      "inputs": [
+        {
+          "label": "image",
+          "name": "image",
+          "type": "IMAGE",
+          "link": 28
+        },
+        {
+          "label": "mask",
+          "name": "mask",
+          "shape": 7,
+          "type": "MASK",
+          "link": 29
+        },
+        {
+          "label": "optional_context_mask",
+          "name": "optional_context_mask",
+          "shape": 7,
+          "type": "MASK",
+          "link": null
+        },
+        {
+          "label": "downscale_algorithm",
+          "name": "downscale_algorithm",
+          "type": "COMBO",
+          "widget": {
+            "name": "downscale_algorithm"
+          },
+          "link": null
+        },
+        {
+          "label": "upscale_algorithm",
+          "name": "upscale_algorithm",
+          "type": "COMBO",
+          "widget": {
+            "name": "upscale_algorithm"
+          },
+          "link": null
+        },
+        {
+          "label": "preresize",
+          "name": "preresize",
+          "type": "BOOLEAN",
+          "widget": {
+            "name": "preresize"
+          },
+          "link": null
+        },
+        {
+          "label": "preresize_mode",
+          "name": "preresize_mode",
+          "type": "COMBO",
+          "widget": {
+            "name": "preresize_mode"
+          },
+          "link": null
+        },
+        {
+          "label": "preresize_min_width",
+          "name": "preresize_min_width",
+          "type": "INT",
+          "widget": {
+            "name": "preresize_min_width"
+          },
+          "link": null
+        },
+        {
+          "label": "preresize_min_height",
+          "name": "preresize_min_height",
+          "type": "INT",
+          "widget": {
+            "name": "preresize_min_height"
+          },
+          "link": null
+        },
+        {
+          "label": "preresize_max_width",
+          "name": "preresize_max_width",
+          "type": "INT",
+          "widget": {
+            "name": "preresize_max_width"
+          },
+          "link": null
+        },
+        {
+          "label": "preresize_max_height",
+          "name": "preresize_max_height",
+          "type": "INT",
+          "widget": {
+            "name": "preresize_max_height"
+          },
+          "link": null
+        },
+        {
+          "label": "mask_fill_holes",
+          "name": "mask_fill_holes",
+          "type": "BOOLEAN",
+          "widget": {
+            "name": "mask_fill_holes"
+          },
+          "link": null
+        },
+        {
+          "label": "mask_expand_pixels",
+          "name": "mask_expand_pixels",
+          "type": "INT",
+          "widget": {
+            "name": "mask_expand_pixels"
+          },
+          "link": null
+        },
+        {
+          "label": "mask_invert",
+          "name": "mask_invert",
+          "type": "BOOLEAN",
+          "widget": {
+            "name": "mask_invert"
+          },
+          "link": null
+        },
+        {
+          "label": "mask_blend_pixels",
+          "name": "mask_blend_pixels",
+          "type": "INT",
+          "widget": {
+            "name": "mask_blend_pixels"
+          },
+          "link": null
+        },
+        {
+          "label": "mask_hipass_filter",
+          "name": "mask_hipass_filter",
+          "type": "FLOAT",
+          "widget": {
+            "name": "mask_hipass_filter"
+          },
+          "link": null
+        },
+        {
+          "label": "extend_for_outpainting",
+          "name": "extend_for_outpainting",
+          "type": "BOOLEAN",
+          "widget": {
+            "name": "extend_for_outpainting"
+          },
+          "link": null
+        },
+        {
+          "label": "extend_up_factor",
+          "name": "extend_up_factor",
+          "type": "FLOAT",
+          "widget": {
+            "name": "extend_up_factor"
+          },
+          "link": null
+        },
+        {
+          "label": "extend_down_factor",
+          "name": "extend_down_factor",
+          "type": "FLOAT",
+          "widget": {
+            "name": "extend_down_factor"
+          },
+          "link": null
+        },
+        {
+          "label": "extend_left_factor",
+          "name": "extend_left_factor",
+          "type": "FLOAT",
+          "widget": {
+            "name": "extend_left_factor"
+          },
+          "link": null
+        },
+        {
+          "label": "extend_right_factor",
+          "name": "extend_right_factor",
+          "type": "FLOAT",
+          "widget": {
+            "name": "extend_right_factor"
+          },
+          "link": null
+        },
+        {
+          "label": "context_from_mask_extend_factor",
+          "name": "context_from_mask_extend_factor",
+          "type": "FLOAT",
+          "widget": {
+            "name": "context_from_mask_extend_factor"
+          },
+          "link": null
+        },
+        {
+          "label": "output_resize_to_target_size",
+          "name": "output_resize_to_target_size",
+          "type": "BOOLEAN",
+          "widget": {
+            "name": "output_resize_to_target_size"
+          },
+          "link": null
+        },
+        {
+          "label": "output_target_width",
+          "name": "output_target_width",
+          "type": "INT",
+          "widget": {
+            "name": "output_target_width"
+          },
+          "link": null
+        },
+        {
+          "label": "output_target_height",
+          "name": "output_target_height",
+          "type": "INT",
+          "widget": {
+            "name": "output_target_height"
+          },
+          "link": null
+        },
+        {
+          "label": "output_padding",
+          "name": "output_padding",
+          "type": "COMBO",
+          "widget": {
+            "name": "output_padding"
+          },
+          "link": null
+        },
+        {
+          "label": "device_mode",
+          "name": "device_mode",
+          "type": "COMBO",
+          "widget": {
+            "name": "device_mode"
+          },
+          "link": null
+        }
+      ],
+      "outputs": [
+        {
+          "label": "stitcher",
+          "name": "stitcher",
+          "type": "STITCHER",
+          "links": [
+            36
+          ]
+        },
+        {
+          "label": "cropped_image",
+          "name": "cropped_image",
+          "type": "IMAGE",
+          "links": [
+            30,
+            31,
+            39
+          ]
+        },
+        {
+          "label": "cropped_mask",
+          "name": "cropped_mask",
+          "type": "MASK",
+          "links": []
+        }
+      ],
+      "properties": {
+        "widget_ue_connectable": {
+          "output_resize_to_target_size": true,
+          "mask_fill_holes": true,
+          "extend_down_factor": true,
+          "extend_left_factor": true,
+          "preresize_min_width": true,
+          "preresize_min_height": true,
+          "preresize_max_width": true,
+          "preresize_max_height": true,
+          "mask_hipass_filter": true,
+          "preresize_mode": true,
+          "output_target_height": true,
+          "preresize": true,
+          "extend_for_outpainting": true,
+          "extend_right_factor": true,
+          "mask_blend_pixels": true,
+          "output_target_width": true,
+          "downscale_algorithm": true,
+          "upscale_algorithm": true,
+          "mask_expand_pixels": true,
+          "mask_invert": true,
+          "context_from_mask_extend_factor": true,
+          "extend_up_factor": true,
+          "output_padding": true
+        },
+        "Node name for S&R": "InpaintCropImproved",
+        "cnr_id": "comfyui-workflow-encrypt",
+        "ver": "1.0.0"
+      },
+      "widgets_values": [
+        "bilinear",
+        "bicubic",
+        false,
+        "ensure minimum resolution",
+        1024,
+        1024,
+        16384,
+        16384,
+        true,
+        0,
+        false,
+        0,
+        0.1,
+        false,
+        1,
+        1,
+        1,
+        1,
+        1.0000000000000002,
+        true,
+        1024,
+        1024,
+        "0",
+        "cpu (compatible)"
+      ],
+      "widgets_values_named": {
+        "downscale_algorithm": "bilinear",
+        "upscale_algorithm": "bicubic",
+        "preresize": false,
+        "preresize_mode": "ensure minimum resolution",
+        "preresize_min_width": 1024,
+        "preresize_min_height": 1024,
+        "preresize_max_width": 16384,
+        "preresize_max_height": 16384,
+        "mask_fill_holes": true,
+        "mask_expand_pixels": 0,
+        "mask_invert": false,
+        "mask_blend_pixels": 0,
+        "mask_hipass_filter": 0.1,
+        "extend_for_outpainting": false,
+        "extend_up_factor": 1,
+        "extend_down_factor": 1,
+        "extend_left_factor": 1,
+        "extend_right_factor": 1,
+        "context_from_mask_extend_factor": 1.0000000000000002,
+        "output_resize_to_target_size": true,
+        "output_target_width": 1024,
+        "output_target_height": 1024,
+        "output_padding": "0",
+        "device_mode": "cpu (compatible)"
+      }
+    },
+    {
+      "id": 27,
+      "type": "InpaintStitchImproved",
+      "pos": [
+        2164.780530778981,
+        95.51484557372602
+      ],
+      "size": [
+        225.25,
+        46
+      ],
+      "flags": {},
+      "order": 13,
+      "mode": 0,
+      "inputs": [
+        {
+          "label": "stitcher",
+          "name": "stitcher",
+          "type": "STITCHER",
+          "link": 36
+        },
+        {
+          "label": "inpainted_image",
+          "name": "inpainted_image",
+          "type": "IMAGE",
+          "link": 34
+        }
+      ],
+      "outputs": [
+        {
+          "label": "image",
+          "name": "image",
+          "type": "IMAGE",
+          "links": [
+            35
+          ]
+        }
+      ],
+      "properties": {
+        "widget_ue_connectable": {},
+        "Node name for S&R": "InpaintStitchImproved",
+        "cnr_id": "comfyui-workflow-encrypt",
+        "ver": "1.0.0"
+      }
+    },
+    {
+      "id": 28,
+      "type": "VAEEncode",
+      "title": "VAE 编码裁切后的原图",
+      "pos": [
+        1560,
+        430
+      ],
+      "size": [
+        250,
+        80
+      ],
+      "flags": {},
+      "order": 13,
+      "mode": 0,
+      "inputs": [
+        {
+          "name": "pixels",
+          "localized_name": "pixels",
+          "type": "IMAGE",
+          "link": 39
+        },
+        {
+          "name": "vae",
+          "localized_name": "vae",
+          "type": "VAE",
+          "link": 40
+        }
+      ],
+      "outputs": [
+        {
+          "name": "LATENT",
+          "localized_name": "LATENT",
+          "type": "LATENT",
+          "links": [
+            38
+          ]
+        }
+      ],
+      "properties": {
+        "Node name for S&R": "VAEEncode"
+      }
+    }
+  ],
+  "links": [
+    [
+      4,
+      4,
+      0,
+      8,
+      0,
+      "MODEL"
+    ],
+    [
+      5,
+      7,
+      0,
+      8,
+      1,
+      "CONDITIONING"
+    ],
+    [
+      6,
+      7,
+      1,
+      8,
+      2,
+      "CONDITIONING"
+    ],
+    [
+      8,
+      8,
+      0,
+      9,
+      0,
+      "LATENT"
+    ],
+    [
+      9,
+      6,
+      0,
+      9,
+      1,
+      "VAE"
+    ],
+    [
+      1,
+      5,
+      0,
+      7,
+      0,
+      "CLIP"
+    ],
+    [
+      3,
+      6,
+      0,
+      7,
+      4,
+      "VAE"
+    ],
+    [
+      12,
+      18,
+      0,
+      19,
+      0,
+      "INT"
+    ],
+    [
+      13,
+      18,
+      1,
+      19,
+      1,
+      "INT"
+    ],
+    [
+      14,
+      19,
+      1,
+      7,
+      7,
+      "INT"
+    ],
+    [
+      23,
+      1,
+      1,
+      23,
+      0,
+      "MASK"
+    ],
+    [
+      28,
+      1,
+      0,
+      26,
+      0,
+      "IMAGE"
+    ],
+    [
+      29,
+      23,
+      0,
+      26,
+      1,
+      "MASK"
+    ],
+    [
+      30,
+      26,
+      1,
+      7,
+      1,
+      "IMAGE"
+    ],
+    [
+      31,
+      26,
+      1,
+      18,
+      0,
+      "IMAGE"
+    ],
+    [
+      34,
+      9,
+      0,
+      27,
+      1,
+      "IMAGE"
+    ],
+    [
+      35,
+      27,
+      0,
+      10,
+      0,
+      "IMAGE"
+    ],
+    [
+      36,
+      26,
+      0,
+      27,
+      0,
+      "STITCHER"
+    ],
+    [
+      38,
+      28,
+      0,
+      8,
+      3,
+      "LATENT"
+    ],
+    [
+      39,
+      26,
+      1,
+      28,
+      0,
+      "IMAGE"
+    ],
+    [
+      40,
+      6,
+      0,
+      28,
+      1,
+      "VAE"
+    ]
+  ],
+  "groups": [
+    {
+      "id": 1,
+      "title": "自动分辨率 · Image 1 → Text Encode",
+      "bounding": [
+        1046.4000859445732,
+        539.5181440587904,
+        583,
+        247
+      ],
+      "color": "#3f789e",
+      "flags": {}
+    }
+  ],
+  "config": {},
+  "extra": {
+    "ds": {
+      "scale": 0.6146472186327806,
+      "offset": [
+        106.20898939594838,
+        836.7461096134967
+      ]
+    },
+    "0246.VERSION": [
+      0,
+      0,
+      4
+    ],
+    "links_added_by_ue": [],
+    "ue_links": [],
+    "frontendVersion": "1.58.5",
+    "KKvideo_latentpreview": false,
+    "KKvideo_latentpreviewrate": 0,
+    "VHS_MetadataImage": true,
+    "VHS_KeepIntermediate": true,
+    "VHS_latentpreview": false,
+    "VHS_latentpreviewrate": 0
+  },
+  "version": 0.4
+}

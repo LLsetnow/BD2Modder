@@ -25,7 +25,7 @@
     onWorkflow: () => modal('重绘工作流', 'AI WORKFLOW', '<p>在桌面版中导入 ComfyUI API 工作流或重绘方案，即可设置图集、遮罩和提示词映射。</p><p class="dialog-info">当前浏览器页面只提供设计预览。</p>', [{ label: '返回设置', action: closeModal }]),
     onProjectAction: () => {}
   });
-  function setShortcutHints() { $('.workspace-switch').title = '切换工作区（' + shortcuts.switchWorkspace + '）'; $('#fit-button .key-hint').textContent = shortcuts.fit; $('.search-box kbd').textContent = shortcuts.search; $('#play-button').title = '播放控制条演示（' + shortcuts.play + '）'; }
+  function setShortcutHints() { $('.workspace-switch').title = '切换工作区（' + shortcuts.switchWorkspace + '）'; $('#fit-button .key-hint').textContent = shortcuts.fit; $('.search-box kbd').textContent = shortcuts.search; $('#play-button').title = '播放控制条演示（' + shortcuts.play + '）'; $('#clear-selection').title = shortcuts.clearSelection ? '清空选择（' + shortcuts.clearSelection + '）' : '清空选择'; }
   const currentPose = () => sample.animations.find((a) => a.id === state.animation) || sample.animations[0];
   const visibleNames = () => new Set(currentPose().geometry.map((d) => d.region));
   const primaryPart = () => sample.parts.find((p) => p.name === [...state.selected].at(-1));
@@ -220,6 +220,7 @@
   document.addEventListener('keydown', event => {
     if (event.defaultPrevented || event.repeat || settingsPage.open || document.activeElement?.isContentEditable || /INPUT|TEXTAREA|SELECT/.test(document.activeElement?.tagName || '') || $('#action-dialog').open) return;
     const action = settingsAPI.actionForEvent(event, shortcuts); if (!action) return; event.preventDefault();
+    if (action === 'clearSelection') { clearSelection(); return; }
     if (action === 'hide') changeVisibility(true); else if (action === 'undo' || action === 'redo') undoVisibility(action === 'redo'); else if (action === 'play') togglePlaying(); else if (action === 'switchWorkspace') setLayout(preferences.layout === 'compare' ? 'studio' : 'compare'); else if (action === 'fit') fit(); else if (action === 'search') $('#part-search').focus(); else if (action === 'open') openAction('open'); else if (action === 'export') openAction('export'); else toast('该项目操作请在桌面版中使用。');
   });
   document.addEventListener('visibilitychange', () => { if (document.hidden) pause(); });

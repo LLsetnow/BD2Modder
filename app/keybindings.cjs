@@ -8,6 +8,7 @@ const ACTIONS = Object.freeze([
   { id: 'undo', name: '撤销修改', group: '编辑操作', default: 'Ctrl+Z', native: true },
   { id: 'redo', name: '重做修改', group: '编辑操作', default: 'Ctrl+Shift+Z', native: true },
   { id: 'hide', name: '隐藏选中部件', group: '编辑操作', default: 'H' },
+  { id: 'clearSelection', name: '清空选择', group: '编辑操作', default: 'Ctrl+D' },
   { id: 'play', name: '播放 / 暂停', group: '画布操作', default: 'Space' },
   { id: 'switchWorkspace', name: '标准 / 图集对照', group: '画布操作', default: 'F' },
   { id: 'fit', name: '适应当前画布', group: '画布操作', default: '0' },
@@ -17,6 +18,7 @@ const DEFAULT_SHORTCUTS = Object.freeze(Object.fromEntries(ACTIONS.map(action =>
 const RESERVED = new Set(['Ctrl+C', 'Ctrl+V', 'Ctrl+X', 'Ctrl+A', 'Ctrl+=', 'Ctrl+Shift+=', 'Ctrl+-', 'Ctrl+0', 'F11', 'Alt+F4', 'Alt+Tab', 'Ctrl+Alt+Delete']);
 const MAC_RESERVED = new Set(['Ctrl+Q', 'Ctrl+H', 'Ctrl+Alt+H', 'Ctrl+M', 'Ctrl+W', 'Ctrl+Space']);
 function formatShortcut(shortcut, isMac) {
+  if (shortcut === '') return '未设置';
   return isMac ? shortcut.replace(/^Ctrl\+/, '⌘+') : shortcut;
 }
 function normalizeShortcut(value, isMac = false) {
@@ -29,7 +31,13 @@ function normalizeShortcut(value, isMac = false) {
 function validateShortcuts(input = {}, isMac = false) {
   if (!input || typeof input !== 'object' || Array.isArray(input)) throw Error('快捷键配置无效。');
   const output = {}, occupied = new Map();
+  const clearDefaultInUse = input.clearSelection == null && ACTIONS.some(action => input[action.id] === DEFAULT_SHORTCUTS.clearSelection);
   for (const action of ACTIONS) {
+    // An older profile may already use Ctrl+D for another action.
+    if (action.id === 'clearSelection' && (input.clearSelection === '' || clearDefaultInUse)) {
+      output.clearSelection = '';
+      continue;
+    }
     const key = normalizeShortcut(input[action.id] ?? action.default, isMac);
     if (action.native && !key.includes('+') && !/^F\d+$/.test(key)) throw Error('项目和编辑操作请使用组合键或 F1–F12，避免影响文字输入。');
     if (occupied.has(key)) throw Error(`快捷键 ${formatShortcut(key, isMac)} 已用于“${occupied.get(key)}”。`);

@@ -1,0 +1,267 @@
+{
+  "1": {
+    "class_type": "LoadImage",
+    "inputs": {
+      "image": "round-2-input.png"
+    },
+    "_meta": {
+      "title": "编辑目标 · 原尺寸 UV 裙片"
+    }
+  },
+  "2": {
+    "class_type": "LoadImageMask",
+    "inputs": {
+      "image": "round-2-model-mask.png",
+      "channel": "red"
+    },
+    "_meta": {
+      "title": "扩展与羽化后的缺口遮罩"
+    }
+  },
+  "3": {
+    "class_type": "LoadImage",
+    "inputs": {
+      "image": "round-2-reference.png"
+    },
+    "_meta": {
+      "title": "独立参考 · 第一轮组装裙摆"
+    }
+  },
+  "4": {
+    "class_type": "UNETLoader",
+    "inputs": {
+      "unet_name": "redqw21UNLOCKEDV2TI2I_redqw21UNLOCKEDV2_int8.safetensors",
+      "weight_dtype": "default"
+    },
+    "_meta": {
+      "title": "Qwen 2.1 · RedQW UNLOCKED V2 INT8"
+    }
+  },
+  "5": {
+    "class_type": "CLIPLoader",
+    "inputs": {
+      "clip_name": "qwen3vl_8b_int8_convrot.safetensors",
+      "type": "qwen_image",
+      "device": "default"
+    },
+    "_meta": {
+      "title": "Qwen 2.1 · 视觉文本编码"
+    }
+  },
+  "6": {
+    "class_type": "VAELoader",
+    "inputs": {
+      "vae_name": "qwen_image_2.1_vae_bf16.safetensors"
+    },
+    "_meta": {
+      "title": "Qwen 2.1 · VAE"
+    }
+  },
+  "7": {
+    "class_type": "TextEncodeQwenImage21",
+    "inputs": {
+      "clip": [
+        "5",
+        0
+      ],
+      "vae": [
+        "6",
+        0
+      ],
+      "prompt": "Edit image 1 in place. Image 2 is the independent assembled fabric reference, for texture and palette only. Image 3 maps the target on image 1: white is the main area, gray is the feathered transition, black is protected. Give every existing marked fabric pixel the hue, contrast and soft fabric shading from image 2, including the smallest detached patches. Match the existing silhouette and leave no breaks or background inside any fabric area. Preserve all fragment positions, outlines, seams, sizes and margin. Return image 1 as a single UV sheet.",
+      "negative_prompt": "changed garment silhouette, moved texture regions, extra clothing, seam displacement, text, watermark",
+      "resolution": [
+        "19",
+        1
+      ],
+      "images.image_1": [
+        "15",
+        0
+      ],
+      "images.image_2": [
+        "3",
+        0
+      ],
+      "images.image_3": [
+        "16",
+        0
+      ]
+    },
+    "_meta": {
+      "title": "第二轮 · 参照组装图补绘"
+    }
+  },
+  "8": {
+    "class_type": "KSampler",
+    "inputs": {
+      "model": [
+        "4",
+        0
+      ],
+      "seed": 793,
+      "steps": 25,
+      "cfg": 4,
+      "sampler_name": "euler",
+      "scheduler": "normal",
+      "positive": [
+        "7",
+        0
+      ],
+      "negative": [
+        "7",
+        1
+      ],
+      "latent_image": [
+        "14",
+        0
+      ],
+      "denoise": 0.88
+    },
+    "_meta": {
+      "title": "Qwen 2.1 · 采样"
+    }
+  },
+  "9": {
+    "class_type": "VAEDecode",
+    "inputs": {
+      "samples": [
+        "8",
+        0
+      ],
+      "vae": [
+        "6",
+        0
+      ]
+    },
+    "_meta": {
+      "title": "解码工作图"
+    }
+  },
+  "10": {
+    "class_type": "SaveImage",
+    "inputs": {
+      "images": [
+        "9",
+        0
+      ],
+      "filename_prefix": "BDModder/part-edit/uv"
+    },
+    "_meta": {
+      "title": "输出 · 原尺寸 UV 补绘图"
+    }
+  },
+  "11": {
+    "class_type": "MaskToImage",
+    "inputs": {
+      "mask": [
+        "2",
+        0
+      ]
+    },
+    "_meta": {
+      "title": "缺口图 · 准确位置引导"
+    }
+  },
+  "12": {
+    "class_type": "VAEEncode",
+    "inputs": {
+      "pixels": [
+        "15",
+        0
+      ],
+      "vae": [
+        "6",
+        0
+      ]
+    },
+    "_meta": {
+      "title": "原 UV 工作图编码"
+    }
+  },
+  "14": {
+    "class_type": "SetLatentNoiseMask",
+    "inputs": {
+      "samples": [
+        "12",
+        0
+      ],
+      "mask": [
+        "17",
+        0
+      ]
+    },
+    "_meta": {
+      "title": "只对缺口邻域采样"
+    }
+  },
+  "15": {
+    "class_type": "ImageScaleBy",
+    "inputs": {
+      "image": [
+        "1",
+        0
+      ],
+      "upscale_method": "lanczos",
+      "scale_by": 2
+    },
+    "_meta": {
+      "title": "工作图 2 倍采样"
+    }
+  },
+  "16": {
+    "class_type": "ImageScaleBy",
+    "inputs": {
+      "image": [
+        "11",
+        0
+      ],
+      "upscale_method": "nearest-exact",
+      "scale_by": 2
+    },
+    "_meta": {
+      "title": "缺口遮罩同步放大"
+    }
+  },
+  "17": {
+    "class_type": "ImageToMask",
+    "inputs": {
+      "image": [
+        "16",
+        0
+      ],
+      "channel": "red"
+    },
+    "_meta": {
+      "title": "恢复采样遮罩"
+    }
+  },
+  "18": {
+    "class_type": "GetImageSize",
+    "inputs": {
+      "image": [
+        "15",
+        0
+      ]
+    },
+    "_meta": {
+      "title": "读取编辑目标宽高"
+    }
+  },
+  "19": {
+    "class_type": "ComfyMathExpression",
+    "inputs": {
+      "expression": "round(sqrt(a * b))",
+      "values.a": [
+        "18",
+        0
+      ],
+      "values.b": [
+        "18",
+        1
+      ]
+    },
+    "_meta": {
+      "title": "计算 Qwen 编码分辨率"
+    }
+  }
+}
