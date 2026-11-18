@@ -1,100 +1,78 @@
 {
   "1": {
-    "inputs": {
-      "image": "d84d4008f170144b36c3798dd8940dce69b5440f722e8eb8f10528d5b6e73fec.png"
-    },
     "class_type": "LoadImage",
-    "_meta": {
-      "title": "编辑目标 · 组装部件"
+    "inputs": {
+      "image": "round-1-input.png"
     }
   },
   "4": {
-    "inputs": {
-      "unet_name": "redqw21UNLOCKEDV2TI2I_redqw21UNLOCKEDV2_int8.safetensors",
-      "weight_dtype": "default"
-    },
     "class_type": "UNETLoader",
-    "_meta": {
-      "title": "Qwen 2.1 · RedQW UNLOCKED V2 INT8"
+    "inputs": {
+      "unet_name": "qwnImageEdit_v16Bf16.safetensors",
+      "weight_dtype": "fp8_e4m3fn"
     }
   },
   "5": {
+    "class_type": "CLIPLoader",
     "inputs": {
-      "clip_name": "qwen3vl_8b_int8_convrot.safetensors",
+      "clip_name": "qwen_2.5_vl_7b_fp8_scaled.safetensors",
       "type": "qwen_image",
       "device": "default"
-    },
-    "class_type": "CLIPLoader",
-    "_meta": {
-      "title": "Qwen 2.1 · 视觉文本编码"
     }
   },
   "6": {
-    "inputs": {
-      "vae_name": "qwen_image_2.1_vae_bf16.safetensors"
-    },
     "class_type": "VAELoader",
-    "_meta": {
-      "title": "Qwen 2.1 · VAE"
+    "inputs": {
+      "vae_name": "qwen_image_vae.safetensors"
     }
   },
   "7": {
+    "class_type": "TextEncodeQwenImageEditPlus",
     "inputs": {
-      "prompt": "Use the provided cropped input image as the source. Apply the requested edit to the subject shown in the crop. Preserve the crop framing, relative placement, folds, openings, and surrounding context. Keep the background unchanged. Do not shift, resize, rearrange, or extend texture regions beyond the canvas.",
-      "negative_prompt": "unrequested background changes, unrequested silhouette changes, moved or resized texture regions, rearranged UV islands, extra elements, displaced seams, text, watermark",
-      "resolution": [
-        "19",
-        1
-      ],
       "clip": [
         "5",
         0
       ],
-      "images.image_1": [
-        "26",
-        1
-      ],
       "vae": [
         "6",
         0
-      ]
-    },
-    "class_type": "TextEncodeQwenImage21",
-    "_meta": {
-      "title": "第一轮 · 原位置重绘"
+      ],
+      "image1": [
+        "16",
+        1
+      ],
+      "prompt": ""
     }
   },
   "8": {
+    "class_type": "KSampler",
     "inputs": {
-      "seed": 793,
-      "steps": 8,
-      "cfg": 4,
-      "sampler_name": "euler",
-      "scheduler": "normal",
-      "denoise": 1,
       "model": [
-        "4",
+        "14",
         0
       ],
       "positive": [
-        "7",
+        "12",
         0
       ],
       "negative": [
-        "7",
-        1
+        "13",
+        0
       ],
       "latent_image": [
-        "28",
+        "18",
         0
-      ]
-    },
-    "class_type": "KSampler",
-    "_meta": {
-      "title": "Qwen 2.1 · 采样"
+      ],
+      "seed": 793,
+      "steps": 4,
+      "cfg": 1,
+      "sampler_name": "euler",
+      "scheduler": "simple",
+      "denoise": 1
     }
   },
   "9": {
+    "class_type": "VAEDecode",
     "inputs": {
       "samples": [
         "8",
@@ -104,68 +82,89 @@
         "6",
         0
       ]
-    },
-    "class_type": "VAEDecode",
-    "_meta": {
-      "title": "解码工作图"
     }
   },
   "10": {
-    "inputs": {
-      "filename_prefix": "BDModder/part-edit/assembled",
-      "images": [
-        "27",
-        0
-      ]
-    },
     "class_type": "SaveImage",
-    "_meta": {
-      "title": "输出 · 组装部件 RGB"
-    }
-  },
-  "18": {
     "inputs": {
-      "image": [
-        "26",
-        1
-      ]
-    },
-    "class_type": "GetImageSize",
-    "_meta": {
-      "title": "读取组装图宽高 · Image 1"
-    }
-  },
-  "19": {
-    "inputs": {
-      "expression": "round(sqrt(a * b))",
-      "values.a": [
-        "18",
+      "images": [
+        "20",
         0
       ],
-      "values.b": [
-        "18",
-        1
-      ]
-    },
-    "class_type": "ComfyMathExpression",
-    "_meta": {
-      "title": "计算 resolution · round(sqrt(宽 × 高))"
+      "filename_prefix": "BDModder/part-edit/assembled-qwen-edit"
     }
   },
-  "23": {
+  "11": {
+    "class_type": "TextEncodeQwenImageEditPlus",
     "inputs": {
-      "mask": [
+      "clip": [
+        "5",
+        0
+      ],
+      "vae": [
+        "6",
+        0
+      ],
+      "image1": [
+        "16",
+        1
+      ],
+      "prompt": ""
+    }
+  },
+  "12": {
+    "class_type": "FluxKontextMultiReferenceLatentMethod",
+    "inputs": {
+      "conditioning": [
+        "7",
+        0
+      ],
+      "reference_latents_method": "index_timestep_zero"
+    }
+  },
+  "13": {
+    "class_type": "FluxKontextMultiReferenceLatentMethod",
+    "inputs": {
+      "conditioning": [
+        "11",
+        0
+      ],
+      "reference_latents_method": "index_timestep_zero"
+    }
+  },
+  "14": {
+    "class_type": "CFGNorm",
+    "inputs": {
+      "model": [
+        "15",
+        0
+      ],
+      "strength": 1,
+      "pre_cfg": false
+    }
+  },
+  "15": {
+    "class_type": "ModelSamplingAuraFlow",
+    "inputs": {
+      "model": [
+        "4",
+        0
+      ],
+      "shift": 3.1,
+      "sampling": "flow"
+    }
+  },
+  "16": {
+    "class_type": "InpaintCropImproved",
+    "inputs": {
+      "image": [
         "1",
-        1
-      ]
-    },
-    "class_type": "InvertMask",
-    "_meta": {
-      "title": "Invert Mask"
-    }
-  },
-  "26": {
-    "inputs": {
+        0
+      ],
+      "mask": [
+        "19",
+        0
+      ],
       "downscale_algorithm": "bilinear",
       "upscale_algorithm": "bicubic",
       "preresize": false,
@@ -184,60 +183,60 @@
       "extend_down_factor": 1,
       "extend_left_factor": 1,
       "extend_right_factor": 1,
-      "context_from_mask_extend_factor": 1.0000000000000002,
+      "context_from_mask_extend_factor": 1.2,
       "output_resize_to_target_size": true,
       "output_target_width": 1024,
       "output_target_height": 1024,
-      "output_padding": "0",
-      "device_mode": "cpu (compatible)",
-      "image": [
-        "1",
-        0
-      ],
-      "mask": [
-        "23",
-        0
-      ]
-    },
-    "class_type": "InpaintCropImproved",
-    "_meta": {
-      "title": "✂️ Inpaint Crop",
-      "cnr_id": "comfyui-workflow-encrypt",
-      "ver": "1.0.0"
+      "output_padding": "32",
+      "device_mode": "cpu (compatible)"
     }
   },
-  "27": {
-    "inputs": {
-      "stitcher": [
-        "26",
-        0
-      ],
-      "inpainted_image": [
-        "9",
-        0
-      ]
-    },
-    "class_type": "InpaintStitchImproved",
-    "_meta": {
-      "title": "✂️ Inpaint Stitch",
-      "cnr_id": "comfyui-workflow-encrypt",
-      "ver": "1.0.0"
-    }
-  },
-  "28": {
+  "17": {
     "class_type": "VAEEncode",
     "inputs": {
       "pixels": [
-        "26",
+        "16",
         1
       ],
       "vae": [
         "6",
         0
       ]
-    },
-    "_meta": {
-      "title": "VAE 编码裁切后的原图"
+    }
+  },
+  "18": {
+    "class_type": "SetLatentNoiseMask",
+    "inputs": {
+      "samples": [
+        "17",
+        0
+      ],
+      "mask": [
+        "16",
+        2
+      ]
+    }
+  },
+  "19": {
+    "class_type": "InvertMask",
+    "inputs": {
+      "mask": [
+        "1",
+        1
+      ]
+    }
+  },
+  "20": {
+    "class_type": "InpaintStitchImproved",
+    "inputs": {
+      "stitcher": [
+        "16",
+        0
+      ],
+      "inpainted_image": [
+        "9",
+        0
+      ]
     }
   }
 }

@@ -454,7 +454,7 @@
       this.element.hidden = true;
       if (focus && this.origin?.isConnected) this.origin.focus();
     }
-    show(event, origin, { count, canHide, canShow, canIsolate, selectionOnly, shortcut, onHide, onShow, onToggleSelectionOnly }) {
+    show(event, origin, { count, canHide, canShow, canReplace, canExport, canIsolate, selectionOnly, shortcut, onHide, onShow, onReplace, onExport, onToggleSelectionOnly }) {
       event.preventDefault();
       this.origin = origin;
       this.element.replaceChildren();
@@ -462,6 +462,8 @@
       const actions = [
         ["\u9690\u85CF\u9009\u4E2D\u90E8\u4EF6" + suffix, shortcut, !canHide, onHide],
         ["\u663E\u793A\u9690\u85CF\u90E8\u4EF6" + suffix, "", !canShow, onShow],
+        [count > 1 ? "\u66FF\u6362\u7EC4\u5408 PNG" : "\u66FF\u6362 PNG", "", !canReplace, onReplace],
+        [count > 1 ? "\u5BFC\u51FA\u7EC4\u5408 PNG" : "\u5BFC\u51FA PNG", "", !canExport, onExport],
         [selectionOnly ? "\u6062\u590D\u5B8C\u6574\u9884\u89C8" : "\u53EA\u770B\u9009\u4E2D\u90E8\u4EF6" + suffix, "", !selectionOnly && !canIsolate, onToggleSelectionOnly]
       ];
       for (const [label, key, disabled, run] of actions) {

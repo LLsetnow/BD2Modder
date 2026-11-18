@@ -368,8 +368,7 @@ async function changeVisibility(hidden) {
   if (!state.ready || !state.selected.size) return;
   partMenu.close(); const parts = [...state.selected].map(region).filter(Boolean);
   const result = await window.bd.visibility({ parts: parts.map(({ page, name }) => ({ page, name })), hidden });
-  if (state.repaintPreview) await refresh(result);
-  else { status(result); preview.setHiddenParts(result.hiddenParts); renderLibrary(); renderProperties(); renderAtlas(); }
+  status(result); preview.setHiddenParts(result.hiddenParts); renderLibrary(); renderProperties(); renderAtlas();
   toast(hidden ? '选中部件已隐藏；导出时清除对应贴图像素，可撤销或右键显示。' : '选中部件已显示，保留已有的贴图编辑。');
 }
 async function save(asNew = false) { const result = await window.bd.save(asNew); if (result?.skeletonBytes) await openDescriptor(result); else if (result) { status(result); toast(result.backup ? '已保存，原文件备份在 .bdmodder-backups 中。' : '所有修改已保存。'); } }

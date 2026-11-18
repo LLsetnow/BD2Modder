@@ -140,7 +140,13 @@ function setupHandlers() {
     });
     return p.mutate(args.page, 'restore', rects);
   }));
-  handle('bd:visibility', args => serialized(() => requireProject().setVisibility(args.parts, args.hidden)));
+  handle('bd:visibility', args => serialized(() => {
+    const p = requireProject(), revision = p.revision;
+    const result = p.setVisibility(args.parts, args.hidden);
+    // Visibility changes do not alter the atlas bytes used to build a pending candidate.
+    if (candidate?.projectId === p.id && candidate.revision === revision) candidate.revision = p.revision;
+    return result;
+  }));
   handle('bd:replace', args => serialized(async () => {
     const p = requireProject(); let rect = null, parts = null;
     if (args.composite) {

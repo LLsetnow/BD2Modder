@@ -58,20 +58,20 @@ macOS 使用 Command（⌘）对应下列 Ctrl 快捷键。按住 Command 点击
 
 「UV 回写与蒙版」可选择写回通道。默认的「仅写回 RGB」保留图集透明度。「写回 ARGB」使用成图的 Alpha 写回直接取样的像素。纯 RGB 成图、交界共用取色和近邻补色保留目标像素的透明度。
 
-内置工作流使用 [RunningHub 原生 ComfyUI 入口](https://www.runninghub.ai/runninghub-api-doc-en/doc-8287466)提交完整节点图。在「设置 → AI 绘图」中可以为多个 RunningHub API Key 命名并加密保存。切换启用的密钥后，新的连接测试和重绘任务会使用所选密钥。本案例通过国际站地址 `https://www.runninghub.ai/` 验证。两份 API 格式 JSON 也可导入支持 Qwen Image 2.1 的本地 ComfyUI。
+内置工作流使用 [RunningHub 原生 ComfyUI 入口](https://www.runninghub.ai/runninghub-api-doc-en/doc-8287466)提交完整节点图。在「设置 → AI 绘图」中可以为多个 RunningHub API Key 命名并加密保存。切换启用的密钥后，新的连接测试和重绘任务会使用所选密钥。本案例通过国际站地址 `https://www.runninghub.ai/` 验证。第一轮使用 Qwen Image Edit Plus，第二轮使用 Qwen Image 2.1；对应模型与节点依赖需分别准备。
 
 在本地 ComfyUI 中打开下面两份画布版，可用「文件 → 打开」或直接拖入画布。画布版含节点位置与连线。原有 API JSON 供 BD Modder 提交任务，较旧的导入器可能无法将它还原为画布。 [ComfyUI 工作流格式](https://docs.comfy.org/development/api-development/workflow-api-format)
 
 | 轮次 | 本地 ComfyUI 画布版 | BD Modder API 版 |
 | --- | --- | --- |
-| 第一轮 · 组装图重绘 | [打开画布 JSON](app/workflows/local-repaint-assembled.qwen21.canvas.json) | [API JSON](app/workflows/local-repaint-assembled.qwen21.json) |
-| 第二轮 · 原尺寸 UV 补绘 | [打开画布 JSON](app/workflows/local-repaint-uv.qwen21.canvas.json) | [API JSON](app/workflows/local-repaint-uv.qwen21.json) |
+| 第一轮 · 组装图重绘（Qwen Image Edit Plus） | [打开画布 JSON](app/workflows/local-repaint-assembled.qwen21.canvas.json) | [API JSON](app/workflows/local-repaint-assembled.qwen21.json) |
+| 第二轮 · 原尺寸 UV 补绘（Qwen Image 2.1） | [打开画布 JSON](app/workflows/local-repaint-uv.qwen21.canvas.json) | [API JSON](app/workflows/local-repaint-uv.qwen21.json) |
 
-两轮工作流都读取编辑目标的宽高，用 `round(sqrt(宽 × 高))` 设置 `TextEncodeQwenImage21` 的 `resolution`。第一轮读取组装图，第二轮读取放大两倍后的 UV 工作图。编码节点据此按输入宽高比把尺寸对齐到 32 的倍数。
+第二轮读取编辑目标的宽高，用 `round(sqrt(宽 × 高))` 设置 `TextEncodeQwenImage21` 的 `resolution`，并读取放大两倍后的 UV 工作图。第一轮使用 `TextEncodeQwenImageEditPlus` 编码裁切后的组装图；程序把修改要求写入提示词节点。
 
-本地 ComfyUI 需要包含 `TextEncodeQwenImage21`、`GetImageSize` 和 `ComfyMathExpression` 节点。若提示节点缺失，更新 ComfyUI 和配套前端。模型准备好后，在第一轮的图像节点选择 `round-1-input.png`。第二轮分别选择 `round-2-input.png`、`round-2-model-mask.png` 和上一轮生成的 `round-1-output.png`（独立参考图）。PNG 可从 BD Modder 对应任务的 `jobs` 目录获取。 [Qwen Image 2.1 官方模板与依赖](https://docs.comfy.org/tutorials/image/qwen/qwen-image-2-1)
+本地 ComfyUI 需要包含第一轮的 `TextEncodeQwenImageEditPlus`、`InpaintCropImproved`、`InpaintStitchImproved` 等节点，以及第二轮的 `TextEncodeQwenImage21`、`GetImageSize` 和 `ComfyMathExpression`。模型准备好后，第一轮选择 `round-1-input.png`；第二轮分别选择 `round-2-input.png`、`round-2-model-mask.png` 和上一轮生成的 `round-1-output.png`（独立参考图）。PNG 可从 BD Modder 对应任务的 `jobs` 目录获取。 [Qwen Image 2.1 官方模板与依赖](https://docs.comfy.org/tutorials/image/qwen/qwen-image-2-1)
 
-本地需要将 `redqw21UNLOCKEDV2TI2I_redqw21UNLOCKEDV2_int8.safetensors` 放入 `models/diffusion_models`，将 `qwen3vl_8b_int8_convrot.safetensors` 放入 `models/text_encoders`，将 `qwen_image_2.1_vae_bf16.safetensors` 放入 `models/vae`。在工作流中的提示词节点填写实际修改要求。
+第一轮需要将 `qwnImageEdit_v16Bf16.safetensors` 放入 `models/diffusion_models`，将 `qwen_2.5_vl_7b_fp8_scaled.safetensors` 放入 `models/text_encoders`，将 `qwen_image_vae.safetensors` 放入 `models/vae`。第二轮需要将 `redqw21UNLOCKEDV2TI2I_redqw21UNLOCKEDV2_int8.safetensors` 放入 `models/diffusion_models`，将 `qwen3vl_8b_int8_convrot.safetensors` 放入 `models/text_encoders`，将 `qwen_image_2.1_vae_bf16.safetensors` 放入 `models/vae`。两轮的提示词都由 BD Modder 修改要求提供。第一轮 `mask_blend_pixels` 固定为 0。
 
 ## 开发和构建
 

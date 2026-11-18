@@ -14,6 +14,7 @@ const { prepare, projectRoundOne } = require('../app/local-repaint.cjs');
 const assembled = require('../app/workflows/local-repaint-assembled.qwen21.json');
 const uv = require('../app/workflows/local-repaint-uv.qwen21.json');
 const model = 'redqw21UNLOCKEDV2TI2I_redqw21UNLOCKEDV2_int8.safetensors';
+const firstRoundModel = 'qwnImageEdit_v16Bf16.safetensors';
 
 test('built-in RunningHub jobs send full graphs and load the independent reference', async () => {
   const uploads = [];
@@ -60,8 +61,14 @@ test('built-in RunningHub jobs send full graphs and load the independent referen
   assert.deepEqual(submitted.prompt[14].inputs.mask, ['17', 0]);
   assert.equal(submitted.prompt[8].inputs.denoise, .8);
   assert.equal(submitted.prompt[4].inputs.unet_name, model);
-  assert.equal(assembled[4].inputs.unet_name, model);
-  for (const [graph, target] of [[assembled, ['1', 0]], [submitted.prompt, ['15', 0]]]) {
+  assert.equal(uv[4].inputs.unet_name, model);
+  assert.equal(assembled[4].inputs.unet_name, firstRoundModel);
+  assert.equal(assembled[7].class_type, 'TextEncodeQwenImageEditPlus');
+  assert.deepEqual(assembled[7].inputs.image1, ['16', 1]);
+  assert.equal(assembled[16].inputs.mask_blend_pixels, 0);
+  assert.deepEqual(assembled[18].inputs.mask, ['16', 2]);
+  assert.deepEqual(assembled[20].inputs.inpainted_image, ['9', 0]);
+  for (const [graph, target] of [[uv, ['15', 0]], [submitted.prompt, ['15', 0]]]) {
     assert.deepEqual(graph[7].inputs['images.image_1'], target);
     assert.deepEqual(graph[7].inputs.resolution, ['19', 1]);
     assert.equal(graph[18].class_type, 'GetImageSize');
